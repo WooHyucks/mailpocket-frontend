@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+
+body {
+  margin: 0;
+  font-family: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
+    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+
+/* symbolanimate */
+
+.animate-bounce {
+  animation: bounceAnimation 1500ms;
+}
+
+@keyframes bounceAnimation {
+  0% {
+    transform: translate(180px, 0px) rotate(300deg);
+  }
+  40% {
+    transform: translateY(0px);
+  }
+  60% {
+    transform: translateY(-30px) rotate(30deg);
+  }
+  80% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-loding {
+  animation: bounceAnimation 2000ms infinite;
+}
+
+@keyframes bounceAnimation {
+  0% {
+    transform: translate(0px, 0px) rotate(300deg);
+  }
+  40% {
+    transform: translateY(0px);
+  }
+  60% {
+    transform: translateY(-30px) rotate(30deg);
+  }
+  80% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-greetings {
+  animation: greetingsAnimation 1500ms;
+}
+
+@keyframes greetingsAnimation {
+  0% {
+    transform: translateY(0px);
+  }
+  40% {
+    transform: translateY(-30px);
+  }
+  60% {
+    transform: translateY(-30px) rotate(-70deg);
+  }
+  80% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+  0% {
+    transform: translate(0, 30px);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+
+/* base */
+.basecontainer {
+  @apply flex flex-col justify-center items-center;
+}
+
+.basecontainer-submitcontainer {
+  @apply border-white border rounded-lg my-7 bg-white relative;
+}
+
+.basecontainer-submitdata {
+  @apply w-full mt-4 rounded-lg h-[45px]  border-none bg-customPurple text-white text-sm font-bold;
+}
+
+/* auth style */
+
+.signin-container {
+  @apply h-full w-[360px] md:w-[350px];
+}
+
+.signup-container {
+  @apply h-[430px] w-[300px] md:w-[350px] md:h-[430px];
+}
+
+.authcontainer-submit {
+  @apply flex flex-col items-center justify-center p-6 md:p-5;
+}
+
+.authcontainer-submit_box {
+  @apply border rounded-lg flex justify-center items-center w-full h-12 md:h-11;
+}
+
+.authcontainer-submit_data {
+  @apply w-[300px] h-9 border-none text-sm md:w-[280px] md:h-6 md:text-base;
+}
+
+.authcontainer-submit_title {
+  @apply my-2 text-2xl font-extrabold md:text-xl;
+}
+
+.authcontainer-submit_coment {
+  @apply mt-4 mb-2 text-base font-extrabold md:text-lg;
+}
+
+.auth-guidecoment {
+  @apply  text-base font-bold mr-1 text-gray-400;
+}
+
+.auth-link {
+  @apply  text-base font-bold text-customPurple no-underline md:text-sm;
+}
+
+/* channle style */
+
+.channel-container {
+  @apply h-[420px] w-[330px] md:w-[350px] md:h-[420px];
+}
+
+.custom-scrollbar {
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #8f20ff;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #f0f0f0;
+}
+
+/* scrollbar */
+.subscribe-scrollbar {
+}
+
+.subscribe-scrollbar::-webkit-scrollbar {
+  width: 0px;
+}
+
+/* menu */
+
+.animate-list-slide-to-left {
+  animation: list-slide-to-left 2500ms;
+}
+
+
+@keyframes list-slide-to-left {
+  0% {
+    transform: translateX(-50px);
+  }
+  40% {
+    transform: translateX(-100px);
+  }
+}
+
+.animate-list-slide-to-right  {
+  animation: list-slide-to-right 2000ms;
+}
+
+@keyframes list-slide-to-right {
+  0% {
+    transform: translateX(-100px);
+  }
+  40% {
+    transform: translateX(0px);
+  }
+}
+
+
+
+.animate-details-slide-to-left {
+  animation: details-slide-to-left 2500ms;
+}
+
+
+@keyframes details-slide-to-left {
+  0% {
+    transform: translateX(-50px);
+  }
+  40% {
+    transform: translateX(-270px);
+  }
+}
+
+.animate-details-slide-to-right  {
+  animation: details-slide-to-right 1500ms;
+}
+
+@keyframes details-slide-to-right {
+  0% {
+    transform: translateX(-100px);
+  }
+  40% {
+    transform: translateX(0px);
+  }
+}
