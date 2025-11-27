@@ -30,6 +30,7 @@ export const Summary = ({
   const [expandedSummaries, setExpandedSummaries] = useState<
     Record<number, boolean>
   >({});
+  const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const authToken = Token();
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export const Summary = ({
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageSubscribe(newsletterId);
       if (response.status === 201) {
@@ -61,6 +63,8 @@ export const Summary = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -68,6 +72,7 @@ export const Summary = ({
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageUnSubscribe(newsletterId);
       if (response.status === 204) {
@@ -81,6 +86,8 @@ export const Summary = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -95,22 +102,23 @@ export const Summary = ({
     <div>
       <div>
         {summaryNewsLetterData.map((data) => (
-          <div key={data.id} className="border-b flex mt-8 flex-col">
+          <div key={data.id} className="border-b border-gray-200 flex mt-8 flex-col pb-6 bg-gradient-to-br from-white to-purple-50/20 rounded-xl p-4 shadow-sm">
             <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
                   <img
-                    className="w-8"
-                    src={`images/${data.newsletter_id}.png`}
-                    alt={String(data.newsletter_id)}
+                    className="w-10 h-10 rounded-full object-cover shadow-sm"
+                    src={`images/${data.name}.png`}
+                    alt={String(data.name)}
                   />
-                  <span className="font-semibold text-gray-600">
-                    {data.from_name}
+                  <span className="font-semibold text-gray-700 text-base">
+                    {data.name}
                   </span>
                   {authToken ? (
                     subscriptionStatusMap[data.newsletter_id] ? (
-                      <span
-                        className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold"
+                      <button
+                        disabled={loadingStates[data.newsletter_id]}
+                        className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[70px] hover:shadow-md transition-all duration-200"
                         onClick={() =>
                           handleNewsLetterUnSelected(
                             data.newsletter_id,
@@ -118,11 +126,16 @@ export const Summary = ({
                           )
                         }
                       >
-                        구독해제
-                      </span>
+                        {loadingStates[data.newsletter_id] ? (
+                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          "구독해제"
+                        )}
+                      </button>
                     ) : (
-                      <span
-                        className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton"
+                      <button
+                        disabled={loadingStates[data.newsletter_id]}
+                        className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[70px] hover:shadow-md transition-all duration-200"
                         onClick={() =>
                           handleNewsLetterSelected(
                             data.newsletter_id,
@@ -130,15 +143,19 @@ export const Summary = ({
                           )
                         }
                       >
-                        구독하기
-                      </span>
+                        {loadingStates[data.newsletter_id] ? (
+                          <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          "구독하기"
+                        )}
+                      </button>
                     )
                   ) : (
                     ""
                   )}
                 </div>
                 <span className="text-sm font-bold text-gray-400">
-                  {new Date(data.date).toLocaleDateString("ko-KR", {
+                  {new Date(data.updated_at).toLocaleDateString("ko-KR", {
                     weekday: "long",
                     year: "numeric",
                     month: "long",
@@ -147,73 +164,99 @@ export const Summary = ({
                 </span>
               </div>
             </div>
-            <p className="my-4 text-left text-2xl font-bold">{data.subject}</p>
+            <p className="my-4 text-left text-2xl font-bold text-gray-800">{data.subject}</p>
           </div>
         ))}
       </div>
       <div className="flex justify-center gap-5 mt-5">
         <Symbol />
         <div
-          className="border rounded-lg bg-white w-[650px]"
-          style={{ boxShadow: "1px 2px lightgrey" }}
+          className="border border-purple-100/50 rounded-2xl bg-gradient-to-br from-white via-purple-50/20 to-white w-[650px] shadow-lg overflow-hidden"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <p className="font-extrabold">메일포켓이 요약한 내용이에요</p>
-            <div className="flex gap-3">
+          <div className="flex items-center justify-between px-4 py-4 bg-gradient-to-r from-purple-50/50 to-white border-b border-purple-100/50">
+            <p className="font-extrabold text-gray-800">메일포켓이 요약한 내용이에요</p>
+            <div className="flex gap-2">
               <UrlShare
                 summaryNewsLetterData={summaryNewsLetterData}
                 text={"URL 복사하기"}
                 containerstyle={
-                  "p-2 w-full h-[36px] bg-gray-200 flex gap-1 rounded-lg hover:scale-110 transition-transform"
+                  "p-2 h-[36px] bg-gradient-to-br from-gray-100 to-gray-200 flex gap-1 rounded-xl hover:shadow-md transition-all duration-200 active:scale-95"
                 }
-                imgstyle={"w-6"}
+                imgstyle={"w-5 h-5"}
               />
               <KakaoShare
                 summaryNewsLetterData={summaryNewsLetterData}
                 text={"카카오톡으로 공유하기"}
                 containerstyle={
-                  "py-2 px-2 bg-kakaoBgColor flex items-center justify-center gap-1 rounded-lg cursor-pointer hover:scale-110 transition-transform"
+                  "share-node py-2 px-2 bg-kakaoBgColor flex items-center justify-center gap-1 rounded-xl cursor-pointer hover:shadow-md transition-all duration-200 active:scale-95"
                 }
-                imgstyle={"w-6"}
+                imgstyle={"w-5 h-5"}
               />
             </div>
           </div>
           {summaryNewsLetterData.map((data) => (
-            <div
-              key={data.id}
-              className={`p-3 flex flex-col items-start text-start  border-b h-[280px] ${
-                expandedSummaries[data.id]
-                  ? "h-auto"
-                  : "h-[280px] overflow-hidden"
-              } custom-scrollbar`}
-            >
-              {data.summary_list ? (
-                Object.entries(data.summary_list).map(([key, value]) => (
-                  <div className="my-1" key={key}>
-                    <div className="flex flex-col">
-                      <p className="my-1 font-extrabold">{key}</p>
-                      <span className="text-sm text-gray-500 font-semibold">
-                        {String(value)}
-                      </span>
-                    </div>
+            <div key={data.id}>
+              <div
+                className={`p-4 flex flex-col items-start text-left transition-all duration-300 ${
+                  expandedSummaries[data.id]
+                    ? "min-h-[280px]"
+                    : "h-[280px] overflow-hidden"
+                } custom-scrollbar`}
+              >
+                {data.summary_list ? (
+                  <div className="space-y-4 w-full text-left">
+                    {Object.entries(data.summary_list).map(([key, value], index) => (
+                      <div
+                        key={key}
+                        className="p-4 bg-gradient-to-br from-purple-50/40 to-white rounded-xl border border-purple-100/50 shadow-sm hover:shadow-md transition-all duration-200 text-left"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 mt-2"></div>
+                          <div className="flex-1 text-left">
+                            <p className="font-extrabold text-gray-800 mb-2 text-base text-left">{key}</p>
+                            <span className="text-sm text-gray-600 font-medium leading-relaxed text-left block">
+                              {String(value)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              ) : (
-                <p className="mt-2 text-sm text-gray-500 font-semibold">
-                  요약 데이터가 없습니다
-                </p>
-              )}
-            </div>
-          ))}
-          {summaryNewsLetterData.map((data) => (
-            <div
-              key={data.id}
-              className="p-3 cursor-pointer text-center"
-              onClick={() => toggleSummaryExpansion(data.id)}
-            >
-              <span className="text-lg text-customPurple font-bold">
-                {expandedSummaries[data.id] ? "닫기" : "펼치기"}
-              </span>
+                ) : (
+                  <div className="w-full p-6 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 text-center">
+                    <p className="text-sm text-gray-500 font-semibold">
+                      요약 데이터가 없습니다
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Expand/Collapse Button */}
+              <div
+                className="p-3 cursor-pointer text-center bg-gradient-to-r from-purple-50/30 to-white border-t border-purple-100/50 hover:bg-gradient-to-r hover:from-purple-100/40 hover:to-white transition-all duration-200 active:scale-98"
+                onClick={() => toggleSummaryExpansion(data.id)}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-base text-customPurple font-bold">
+                    {expandedSummaries[data.id] ? "닫기" : "펼치기"}
+                  </span>
+                  <svg
+                    className={`w-5 h-5 text-customPurple transition-transform duration-200 ${
+                      expandedSummaries[data.id] ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -229,13 +272,14 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
   const [expandedSummaries, setExpandedSummaries] = useState<
     Record<number, boolean>
   >({});
+  const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const authToken = Token();
-  console.log(summaryNewsLetterData);
 
   const handleNewsLetterSelected = async (
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageSubscribe(newsletterId);
       if (response.status === 201) {
@@ -249,6 +293,8 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -256,6 +302,7 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageUnSubscribe(newsletterId);
       if (response.status === 204) {
@@ -269,6 +316,8 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -300,22 +349,23 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
           </div>
         ) : (
           summaryNewsLetterData.map((data) => (
-            <div key={data.id} className="border-b flex mt-8 flex-col">
+            <div key={data.id} className="border-b border-gray-200 flex mt-8 flex-col pb-6 bg-gradient-to-br from-white to-purple-50/20 rounded-xl p-4 shadow-sm">
               <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
                     <img
-                      className="w-8"
+                      className="w-10 h-10 rounded-full object-cover shadow-sm"
                       src={`images/${data.name}.png`}
                       alt={String(data.name)}
                     />
-                    <span className="font-semibold text-gray-600">
+                    <span className="font-semibold text-gray-700 text-base">
                       {data.name}
                     </span>
                     {authToken ? (
                       subscriptionStatusMap[data.newsletter_id] ? (
-                        <span
-                          className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton"
+                        <button
+                          disabled={loadingStates[data.newsletter_id]}
+                          className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[70px] hover:shadow-md transition-all duration-200"
                           onClick={() =>
                             handleNewsLetterSelected(
                               data.newsletter_id,
@@ -323,10 +373,24 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
                             )
                           }
                         >
-                          구독하기
-                        </span>
+                          {loadingStates[data.newsletter_id] ? (
+                            <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            "구독하기"
+                          )}
+                        </button>
                       ) : (
-                        <span className='p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold' onClick={() => handleNewsLetterUnSelected(data.newsletter_id, data.from_name)}>구독해제</span>
+                        <button
+                          disabled={loadingStates[data.newsletter_id]}
+                          className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[70px] hover:shadow-md transition-all duration-200"
+                          onClick={() => handleNewsLetterUnSelected(data.newsletter_id, data.from_name)}
+                        >
+                          {loadingStates[data.newsletter_id] ? (
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            "구독해제"
+                          )}
+                        </button>
                       )
                     ) : (
                       ""
@@ -342,7 +406,7 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
                   </span>
                 </div>
               </div>
-              <p className="my-4 text-left text-2xl font-bold">{data.subject}</p>
+              <p className="my-4 text-left text-2xl font-bold text-gray-800">{data.subject}</p>
             </div>
           ))
         )}
@@ -350,27 +414,26 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
       <div className="flex justify-center gap-5 mt-5">
         <Symbol />
         <div
-          className="border rounded-lg bg-white w-[650px]"
-          style={{ boxShadow: "1px 2px lightgrey" }}
+          className="border border-purple-100/50 rounded-2xl bg-gradient-to-br from-white via-purple-50/20 to-white w-[650px] shadow-lg overflow-hidden"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <p className="font-extrabold">메일포켓이 요약한 내용이에요</p>
-            <div className="flex gap-3">
+          <div className="flex items-center justify-between px-4 py-4 bg-gradient-to-r from-purple-50/50 to-white border-b border-purple-100/50">
+            <p className="font-extrabold text-gray-800">메일포켓이 요약한 내용이에요</p>
+            <div className="flex gap-2">
               <UrlShare
                 summaryNewsLetterData={summaryNewsLetterData}
                 text={"URL 복사하기"}
                 containerstyle={
-                  "p-2 h-[36px] w-full bg-gray-200 flex gap-1 rounded-lg hover:scale-110 transition-transform"
+                  "p-2 h-[36px] bg-gradient-to-br from-gray-100 to-gray-200 flex gap-1 rounded-xl hover:shadow-md transition-all duration-200 active:scale-95"
                 }
-                imgstyle={"w-6"}
+                imgstyle={"w-5 h-5"}
               />
               <KakaoShare
                 summaryNewsLetterData={summaryNewsLetterData}
                 text={"카카오톡으로 공유하기"}
                 containerstyle={
-                  "share-node py-2 px-2 bg-kakaoBgColor flex items-center justify-center gap-1 rounded-lg cursor-pointer hover:scale-110 transition-transform"
+                  "share-node py-2 px-2 bg-kakaoBgColor flex items-center justify-center gap-1 rounded-xl cursor-pointer hover:shadow-md transition-all duration-200 active:scale-95"
                 }
-                imgstyle={"w-6"}
+                imgstyle={"w-5 h-5"}
               />
             </div>
           </div>
@@ -413,42 +476,68 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
           ) : (
             <>
               {summaryNewsLetterData.map((data) => (
-                <div
-                  key={data.id}
-                  className={`p-3 flex flex-col items-start text-start  border-b h-[280px] ${
-                    expandedSummaries[data.id]
-                      ? "h-auto"
-                      : "h-[280px] overflow-hidden"
-                  } custom-scrollbar`}
-                >
-                  {data.summary_list ? (
-                    Object.entries(data.summary_list).map(([key, value]) => (
-                      <div className="my-1" key={key}>
-                        <div className="flex flex-col">
-                          <p className="my-1 font-extrabold">{key}</p>
-                          <span className="text-sm text-gray-500 font-semibold">
-                            {String(value)}
-                          </span>
-                        </div>
+                <div key={data.id}>
+                  <div
+                    className={`p-4 flex flex-col items-start text-left transition-all duration-300 ${
+                      expandedSummaries[data.id]
+                        ? "min-h-[280px]"
+                        : "h-[280px] overflow-hidden"
+                    } custom-scrollbar`}
+                  >
+                    {data.summary_list ? (
+                      <div className="space-y-4 w-full text-left">
+                        {Object.entries(data.summary_list).map(([key, value], index) => (
+                          <div
+                            key={key}
+                            className="p-4 bg-gradient-to-br from-purple-50/40 to-white rounded-xl border border-purple-100/50 shadow-sm hover:shadow-md transition-all duration-200 text-left"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 mt-2"></div>
+                              <div className="flex-1 text-left">
+                                <p className="font-extrabold text-gray-800 mb-2 text-base text-left">{key}</p>
+                                <span className="text-sm text-gray-600 font-medium leading-relaxed text-left block">
+                                  {String(value)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-500 font-semibold">
-                      요약 데이터가 없습니다
-                    </p>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <div className="w-full p-6 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 text-center">
+                        <p className="text-sm text-gray-500 font-semibold">
+                          요약 데이터가 없습니다
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
-              {summaryNewsLetterData.map((data) => (
-                <div
-                  key={data.id}
-                  className="p-3 cursor-pointer text-center"
-                  onClick={() => toggleSummaryExpansion(data.id)}
-                >
-                  <span className="text-lg text-customPurple font-bold">
-                    {expandedSummaries[data.id] ? "닫기" : "펼치기"}
-                  </span>
+                  {/* Expand/Collapse Button */}
+                  <div
+                    className="p-3 cursor-pointer text-center bg-gradient-to-r from-purple-50/30 to-white border-t border-purple-100/50 hover:bg-gradient-to-r hover:from-purple-100/40 hover:to-white transition-all duration-200 active:scale-98"
+                    onClick={() => toggleSummaryExpansion(data.id)}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-base text-customPurple font-bold">
+                        {expandedSummaries[data.id] ? "닫기" : "펼치기"}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 text-customPurple transition-transform duration-200 ${
+                          expandedSummaries[data.id] ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               ))}
             </>

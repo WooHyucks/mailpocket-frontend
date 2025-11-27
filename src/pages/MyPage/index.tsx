@@ -188,16 +188,15 @@ const NavBar = ({
 }: any) => {
   return (
     <div
-      className="flex flex-col sticky top-0 z-1  flex-[7%]  border-r-[1px] border-r-#E8E8E8 
-    shadow-[1px_0px_5px_0px_#E8E8E8] h-screen min-w-[100px] justify-between"
+      className="flex flex-col sticky top-0 z-1 flex-[7%] border-r border-gray-200 bg-gradient-to-b from-white to-gray-50/30 shadow-lg h-screen min-w-[100px] justify-between"
     >
-      <div className={`pt-[10px]  overflow-auto hideScroll`}>
+      <div className="pt-3 overflow-auto hideScroll custom-scrollbar">
         {isLoading ? (
           <>
             {[...Array(5)].map((_, index) => (
-              <div key={index} className="px-[10px] border-b-[1px] border-b-#E8E8E8 py-[15px]">
-                <Skeleton className="w-[42px] h-[42px] mx-auto mb-[6px] rounded-full" />
-                <Skeleton className="h-[14px] w-[60px] mx-auto mt-[6px]" />
+              <div key={index} className="px-3 py-4 border-b border-gray-200">
+                <Skeleton className="w-[42px] h-[42px] mx-auto mb-2 rounded-full" />
+                <Skeleton className="h-[14px] w-[60px] mx-auto mt-2" />
               </div>
             ))}
           </>
@@ -216,12 +215,12 @@ const NavBar = ({
           })
         )}
       </div>
-      <div className="">
+      <div className="bg-white border-t border-gray-200">
         <div className="">
           <ChangeButton></ChangeButton>
           <Option setOpenModal={setOpenModal}></Option>
         </div>
-        <div className="border-t-[1px] border-t-#E8E8E8">
+        <div className="border-t border-gray-200">
           <Authentication handleLogOut={handleLogOut}></Authentication>
         </div>
       </div>
@@ -231,10 +230,10 @@ const NavBar = ({
 
 const Authentication = ({ handleLogOut }: any) => {
   return (
-    <div className="py-[12px]">
+    <div className="py-3 px-5">
       <span
         onClick={handleLogOut}
-        className="cursor-pointer font-extrabold underline"
+        className="cursor-pointer font-bold text-sm text-gray-600 hover:text-gray-800 underline transition-colors"
       >
         로그아웃
       </span>
@@ -243,26 +242,36 @@ const Authentication = ({ handleLogOut }: any) => {
 };
 
 const Item = ({ index, name, onClick, activeTab, setActiveTab }: any) => {
+  const isActive = index === activeTab;
   return (
     <div
-      className={`px-[10px] border-b-[1px] border-b-#E8E8E8 h-[100px] cursor-pointer h-auto`}
+      className={`px-3 py-4 border-b border-gray-200 cursor-pointer transition-all duration-200 ${
+        isActive
+          ? "bg-gradient-to-r from-purple-50 to-purple-100/50"
+          : "hover:bg-gradient-to-r hover:from-gray-50 hover:to-white"
+      }`}
       onClick={() => {
         onClick(index);
       }}
     >
-      <div className="mt-[15px] w-auto">
+      <div className="mt-2 w-auto">
         <img
-          className="mx-auto size-[42px]"
-          src={"images/" +  name + ".png"}
+          className={`mx-auto size-[42px] rounded-full object-cover transition-all duration-200 ${
+            isActive ? "ring-2 ring-purple-400 shadow-md" : "hover:shadow-sm"
+          }`}
+          src={"images/" + name + ".png"}
           alt=""
         />
       </div>
 
-      <div>
-        {index === activeTab ? (
-          <div className="border-t-[4px] border-solid border-[#8B5CF6] rounded-sm my-[20px]"></div>
+      <div className="mt-3">
+        {isActive ? (
+          <div className="text-center">
+            <div className="border-t-2 border-solid border-purple-500 rounded-sm my-2"></div>
+            <div className="text-xs font-bold text-purple-700 mt-1">{name}</div>
+          </div>
         ) : (
-          <div className="break-keep break-words text-[13px] mt-[6px] mb-[15px] text-[14px] font-bold text-[#666666]">
+          <div className="break-keep break-words text-xs mt-2 mb-2 text-center font-bold text-gray-600 hover:text-gray-800 transition-colors">
             {name}
           </div>
         )}
@@ -275,15 +284,15 @@ const Item = ({ index, name, onClick, activeTab, setActiveTab }: any) => {
 const ChangeButton = () => {
   return (
     <Link to="/subscribe">
-      <div className="mt-[15px] px-[19px] cursor-pointer">
-        <div className="bg-[#EEEEEE]  size-[42px] mx-auto rounded-xl">
+      <div className="mt-4 px-5 cursor-pointer group">
+        <div className="bg-gradient-to-br from-gray-100 to-gray-200 size-[42px] mx-auto rounded-xl shadow-sm group-hover:shadow-md transition-all duration-200 group-hover:scale-105">
           <img
             className="mx-auto p-[10px] h-full"
             src="images/add.png"
             alt=""
           />
         </div>
-        <div className="text-[13px] mb-[20px] mt-[5px] h-[13px] text-[16px] font-bold text-[#666666]">
+        <div className="text-xs mb-5 mt-2 text-center font-bold text-gray-600 group-hover:text-gray-800 transition-colors">
           변경
         </div>
       </div>
@@ -297,17 +306,17 @@ const Option = ({ setOpenModal }: any) => {
       onClick={() => {
         setOpenModal(true);
       }}
-      className="mt-[15px] px-[19px] cursor-pointer "
+      className="mt-2 px-5 cursor-pointer group"
     >
-      <div className="bg-[#EEEEEE]  size-[42px] mx-auto rounded-xl">
+      <div className="bg-gradient-to-br from-gray-100 to-gray-200 size-[42px] mx-auto rounded-xl shadow-sm group-hover:shadow-md transition-all duration-200 group-hover:scale-105">
         <img
           className="mx-auto size-[20px] h-full"
-          src="images\setting.svg"
+          src="images/setting.svg"
           alt=""
         />
       </div>
 
-      <div className="text-[13px] mb-[20px] mt-[5px] h-[13px] text-[16px] font-bold text-[#666666]">
+      <div className="text-xs mb-5 mt-2 text-center font-bold text-gray-600 group-hover:text-gray-800 transition-colors">
         설정
       </div>
     </div>
@@ -360,8 +369,8 @@ const List = ({
   const isMailLoading = isLoading || isMailDataLoading || !mail.mails || mail.mails.length === 0;
 
   return (
-    <div className="max-w-[310px] sticky top-0 z-2  flex-[24%] border-r-[1px] border-r-#E8E8E8 flex flex-col shadow-[1px_0px_5px_0px_#E8E8E8] h-screen">
-      <div className="min-h-[inherit] overflow-auto hideScroll">
+    <div className="max-w-[310px] sticky top-0 z-2 flex-[24%] border-r border-gray-200 flex flex-col bg-gradient-to-b from-white to-gray-50/30 shadow-lg h-screen">
+      <div className="min-h-[inherit] overflow-auto hideScroll custom-scrollbar">
         <ListItem item={<Header></Header>}></ListItem>
         {isMailLoading ? (
           <>
@@ -423,6 +432,7 @@ const ListItem = ({
   mail,
   setActiveMail,
 }: any) => {
+  const isActive = id === activeMail && activeMail;
   return (
     <div
       onClick={() => {
@@ -434,10 +444,13 @@ const ListItem = ({
           });
         }
       }}
-      className={`min-h-[100px] border-b-[1px] border-b-#E8E8E8 cursor-pointer ${id === activeMail && activeMail ? "bg-[#FAF7FE]" : ""
-        }`}
+      className={`min-h-[100px] border-b border-gray-200 cursor-pointer transition-all duration-200 ${
+        isActive
+          ? "bg-gradient-to-br from-purple-50 to-purple-100/50 border-l-4 border-l-purple-500"
+          : "hover:bg-gradient-to-br hover:from-gray-50 hover:to-white"
+      }`}
     >
-      <div className="ml-[20px] focus:bg-slate-100 min-h-[inherit]">{item}</div>
+      <div className="px-5 py-4 focus:bg-slate-100 min-h-[inherit]">{item}</div>
     </div>
   );
 };
@@ -465,22 +478,27 @@ const Column = ({
   }
 
   return (
-    <div className="text-[16px] font-bold text-left">
+    <div className="text-base font-bold text-left">
       <div
-        className="py-[12px]"
+        className="py-2 cursor-pointer group"
         onClick={() => handleGetMailDetailData(s3_object_key)}
       >
-        <div className="mr-[15px]">
-          <div className=" text-[#666666]  break-keep">{subject}</div>
-          <div className=" text-[#8F8F8F] text-[14px] mt-[5px]">{name}</div>
+        <div className="mb-2">
+          <div className="text-gray-700 break-keep font-semibold leading-snug group-hover:text-gray-900 transition-colors">
+            {subject}
+          </div>
+          <div className="text-gray-500 text-sm mt-2 font-medium">{name}</div>
         </div>
-        <div className="text-[#D3D0D5] mt-[10px]">
-          {new Date(recv_at).toLocaleDateString("ko-KR", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
+        <div className="flex items-center gap-2 mt-3">
+          <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+          <div className="text-gray-400 text-xs font-medium">
+            {new Date(recv_at).toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              weekday: "short",
+            })}
+          </div>
         </div>
       </div>
     </div>
