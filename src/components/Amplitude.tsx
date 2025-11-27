@@ -1,6 +1,7 @@
 import * as amplitude from "@amplitude/analytics-browser";
-
-import { getUserData, Token } from "../api/api";
+import { Token } from "../api/utils";
+import { authApi } from "../api/Auth";
+import { QUERY_KEYS } from "../queries/queryKeys";
 
 const amplitudeApiKey = "d6e91c2b0e6fdb035d5087cbd79c5cab";
 
@@ -21,15 +22,25 @@ export const initializeAmplitude = async () => {
   });
 };
 
-export const AmplitudeSetUserId = async () => {
+export const AmplitudeSetUserId = async (queryClient?: any) => {
   const authToken = Token();
   try {
     if (authToken) {
-      const userInfo = await getUserData();
+      let userInfo;
+      if (queryClient) {
+        userInfo = await queryClient.fetchQuery({
+          queryKey: [QUERY_KEYS.USER],
+          queryFn: () => authApi.getUserData().then((response) => response.data),
+          staleTime: 1000 * 60 * 5,
+        });
+      } else {
+        const response = await authApi.getUserData();
+        userInfo = response.data;
+      }
       return amplitude.setUserId(
-        userInfo.data.identifier
-          ? userInfo.data.identifier
-          : `${userInfo.data.platform}_${userInfo.data.id}`
+        userInfo.identifier
+          ? userInfo.identifier
+          : `${userInfo.platform}_${userInfo.id}`
       );
     }
   } catch (error) {

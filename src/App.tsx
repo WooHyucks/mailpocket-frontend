@@ -16,7 +16,8 @@ import {
   initializeAmplitude,
 } from "./components/Amplitude";
 import PageLoding from "./components/PageLoding";
-import { Token, getUserData } from "./api/api";
+import { Token } from "./api/utils";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   GooglesRedirect,
   KakaoRedirect,
@@ -34,12 +35,13 @@ export const isMobile =
 
 function App() {
   const [amplitudeInitialized, setAmplitudeInitialized] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const initializeAndSetUserId = async () => {
       try {
         await initializeAmplitude();
-        await AmplitudeSetUserId();
+        await AmplitudeSetUserId(queryClient);
         setAmplitudeInitialized(true);
       } catch (error) {
         console.error("Error in initialization:", error);
@@ -47,7 +49,7 @@ function App() {
     };
 
     initializeAndSetUserId();
-  }, []);
+  }, [queryClient]);
 
 
 

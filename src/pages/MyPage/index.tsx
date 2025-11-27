@@ -7,15 +7,12 @@ import React, {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  decodedToken,
-  deleteChannelData,
-  getChannelData,
-  getMail,
-  getMailDetail,
-  getSubscribeData,
-  Token,
-} from "../../api/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { decodedToken, Token } from "../../api/utils";
+import { channelApi } from "../../api/channel";
+import { useSubscribeData, useMail, useMailDetail } from "../../queries/newsletter";
+import { newsletterApi } from "../../api/newsletter";
+import { QUERY_KEYS } from "../../queries/queryKeys";
 import {
   AmplitudeResetUserId,
   sendEventToAmplitude,
@@ -33,6 +30,7 @@ import { SummaryNewsLetterDataType } from "../ReadPage";
 import PageLoding from "../../components/PageLoding";
 import { isMobile } from "../../App";
 import { Sheet } from "../../components/BottomSheet/BottomSheet";
+import { Skeleton } from "../../components/ui/skeleton";
 import { format, isSameDay } from "date-fns";
 import useScrollController from "../../hooks/useScrollController";
 import useSaveLastViewDate from "../../hooks/useSaveLastVIewDate";
@@ -51,18 +49,22 @@ interface MailType {
 }
 
 const MyPage = () => {
-  const [newsLetters, setNewsLetters] = useState<SubscribeNewsLetterDataType[]>(
-    []
-  );
   const [mail, setMail] = useState({});
   const [loadFlag, setLoadFlag] = useState(false);
-  const [activeTab, setActiveTab] = useState();
+  const [activeTab, setActiveTab] = useState<number | undefined>();
   const [activeMail, setActiveMail] = useState();
   const [openModal, setOpenModal] = useState(false);
   const [detailmail, setDetailMail] = useState<any[]>([]);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const navigate = useNavigate();
   const authToken = Token();
   const authTokenDecode = decodedToken();
+  const queryClient = useQueryClient();
+  
+  const { data: newsLetters = [], isLoading: isLoadingNewsLetters } = useSubscribeData(
+    "/newsletter?&subscribe_status=subscribed&sort_type=recent",
+    !!authToken && authTokenDecode !== false
+  );
 
 
   useEffect(() => {
@@ -76,30 +78,25 @@ const MyPage = () => {
       navigate("/landingpage");
     } else {
       sendEventToAmplitude("view my page", "");
-      const sub = handleSubscribe();
-      sub.then((result: any) => {
-        if (result.length > 0) {
-          setNewsLetters(result);
-          setActiveTab(result[0].id);
-        } else {
+      // 로딩이 완료된 후에만 체크
+      if (!isLoadingNewsLetters) {
+        if (newsLetters.length > 0) {
+          setActiveTab(newsLetters[0].id);
+        } else if (newsLetters.length === 0) {
           window.alert("구독중인 뉴스레터가 없습니다.");
           navigate("/subscribe");
         }
-      });
+      }
     }
-  }, [authToken, navigate]);
-
-  const handleSubscribe = async () => {
-    let responesSubscribe = await getSubscribeData(
-      "/newsletter?&subscribe_status=subscribed&sort_type=recent"
-    );
-    let test = responesSubscribe.data;
-    return test;
-  };
+  }, [authToken, navigate, newsLetters, isLoadingNewsLetters]);
 
   const handleMail = async (id: any) => {
-    let responseMail = await getMail(id);
-    return responseMail.data;
+    const data = await queryClient.fetchQuery({
+      queryKey: [QUERY_KEYS.NEWSLETTER_DETAIL, id],
+      queryFn: () => newsletterApi.getMail(id).then((response) => response.data),
+      staleTime: 1000 * 60 * 5,
+    });
+    return data;
   };
 
   const handleLogOut = async () => {
@@ -119,11 +116,18 @@ const MyPage = () => {
   };
 
   const handleGetMailDetailData = async (s3_object_key: string) => {
+    setIsLoadingDetail(true);
     try {
-      const response = await getMailDetail(s3_object_key);
-      setDetailMail([response.data]);
+      const data = await queryClient.fetchQuery({
+        queryKey: [QUERY_KEYS.NEWSLETTER_DETAIL, s3_object_key],
+        queryFn: () => newsletterApi.getMailDetail(s3_object_key).then((response) => response.data),
+        staleTime: 1000 * 60 * 5,
+      });
+      setDetailMail([data]);
     } catch (error) {
       console.log("Api 데이터 불러오기 실패", error);
+    } finally {
+      setIsLoadingDetail(false);
     }
   };
 
@@ -139,6 +143,7 @@ const MyPage = () => {
             setActiveTab={setActiveTab}
             handleLogOut={handleLogOut}
             setOpenModal={setOpenModal}
+            isLoading={isLoadingNewsLetters}
           ></NavBar>
           <List
             mail={mail}
@@ -148,11 +153,14 @@ const MyPage = () => {
             activeMail={activeMail}
             setActiveMail={setActiveMail}
             handleGetMailDetailData={handleGetMailDetailData}
+            isLoading={isLoadingNewsLetters}
           ></List>
           <Main
             detailmail={detailmail}
             newsLetters={newsLetters}
             activeMail={activeMail}
+            isLoadingDetail={isLoadingDetail}
+            isLoading={isLoadingNewsLetters}
           ></Main>
         </div>
       </div>
@@ -176,6 +184,7 @@ const NavBar = ({
   setActiveTab,
   handleLogOut,
   setOpenModal,
+  isLoading,
 }: any) => {
   return (
     <div
@@ -183,18 +192,29 @@ const NavBar = ({
     shadow-[1px_0px_5px_0px_#E8E8E8] h-screen min-w-[100px] justify-between"
     >
       <div className={`pt-[10px]  overflow-auto hideScroll`}>
-        {newsLetters.map((newsLetter: any) => {
-          return (
-            <Item
-              key={newsLetter.id}
-              index={newsLetter.id}
-              name={newsLetter.name}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              onClick={onClick}
-            ></Item>
-          );
-        })}
+        {isLoading ? (
+          <>
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="px-[10px] border-b-[1px] border-b-#E8E8E8 py-[15px]">
+                <Skeleton className="w-[42px] h-[42px] mx-auto mb-[6px] rounded-full" />
+                <Skeleton className="h-[14px] w-[60px] mx-auto mt-[6px]" />
+              </div>
+            ))}
+          </>
+        ) : (
+          newsLetters.map((newsLetter: any) => {
+            return (
+              <Item
+                key={newsLetter.id}
+                index={newsLetter.id}
+                name={newsLetter.name}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                onClick={onClick}
+              ></Item>
+            );
+          })
+        )}
       </div>
       <div className="">
         <div className="">
@@ -233,7 +253,7 @@ const Item = ({ index, name, onClick, activeTab, setActiveTab }: any) => {
       <div className="mt-[15px] w-auto">
         <img
           className="mx-auto size-[42px]"
-          src={"images/" + index + ".png"}
+          src={"images/" +  name + ".png"}
           alt=""
         />
       </div>
@@ -263,7 +283,7 @@ const ChangeButton = () => {
             alt=""
           />
         </div>
-        <div className="text-[13px] my-[15px] h-[13px] text-[16px] font-bold text-[#666666]">
+        <div className="text-[13px] mb-[20px] mt-[5px] h-[13px] text-[16px] font-bold text-[#666666]">
           변경
         </div>
       </div>
@@ -287,7 +307,7 @@ const Option = ({ setOpenModal }: any) => {
         />
       </div>
 
-      <div className="text-[13px] my-[15px] h-[13px] text-[16px] font-bold text-[#666666]">
+      <div className="text-[13px] mb-[20px] mt-[5px] h-[13px] text-[16px] font-bold text-[#666666]">
         설정
       </div>
     </div>
@@ -302,12 +322,17 @@ const List = ({
   activeMail,
   setActiveMail,
   handleGetMailDetailData,
+  isLoading,
 }: any) => {
+  const [isMailDataLoading, setIsMailDataLoading] = useState(false);
+
   useEffect(() => {
     if (newsLetters.length > 0) {
+      setIsMailDataLoading(true);
       let data = handleMail(newsLetters[0].id);
       data.then((result: any) => {
         setMail(result);
+        setIsMailDataLoading(false);
         sendEventToAmplitude("view article detail", {
           "article name": result.name,
           "post name": result.mails[0].subject,
@@ -332,32 +357,51 @@ const List = ({
     }
   }, [mail]);
 
+  const isMailLoading = isLoading || isMailDataLoading || !mail.mails || mail.mails.length === 0;
+
   return (
     <div className="max-w-[310px] sticky top-0 z-2  flex-[24%] border-r-[1px] border-r-#E8E8E8 flex flex-col shadow-[1px_0px_5px_0px_#E8E8E8] h-screen">
       <div className="min-h-[inherit] overflow-auto hideScroll">
         <ListItem item={<Header></Header>}></ListItem>
-        {mail.mails?.map((item: any) => {
-          return (
-            <ListItem
-              key={item.id}
-              activeMail={activeMail}
-              id={item.id}
-              subeject={item.subject}
-              mail={mail}
-              setActiveMail={setActiveMail}
-              item={
-                <Column
-                  handleGetMailDetailData={handleGetMailDetailData}
-                  key={item.id}
-                  subject={item.subject}
-                  s3_object_key={item.s3_object_key}
-                  name={mail.name}
-                  recv_at={item.recv_at}
-                ></Column>
-              }
-            ></ListItem>
-          );
-        })}
+        {isMailLoading ? (
+          <>
+            {[...Array(5)].map((_, index) => (
+              <ListItem
+                key={index}
+                item={
+                  <Column
+                    isLoading={true}
+                    handleGetMailDetailData={handleGetMailDetailData}
+                  />
+                }
+              />
+            ))}
+          </>
+        ) : (
+          mail.mails?.map((item: any) => {
+            return (
+              <ListItem
+                key={item.id}
+                activeMail={activeMail}
+                id={item.id}
+                subeject={item.subject}
+                mail={mail}
+                setActiveMail={setActiveMail}
+                item={
+                  <Column
+                    handleGetMailDetailData={handleGetMailDetailData}
+                    key={item.id}
+                    subject={item.subject}
+                    s3_object_key={item.s3_object_key}
+                    name={mail.name}
+                    recv_at={item.recv_at}
+                    isLoading={false}
+                  ></Column>
+                }
+              ></ListItem>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -404,7 +448,22 @@ const Column = ({
   recv_at,
   s3_object_key,
   handleGetMailDetailData,
+  isLoading = false,
 }: any) => {
+  if (isLoading) {
+    return (
+      <div className="text-[16px] font-bold text-left">
+        <div className="py-[12px] px-[20px]">
+          <div className="mr-[15px]">
+            <Skeleton className="h-[20px] w-full mb-[8px]" />
+            <Skeleton className="h-[16px] w-[120px] mb-[10px]" />
+          </div>
+          <Skeleton className="h-[14px] w-[150px]" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="text-[16px] font-bold text-left">
       <div
@@ -428,7 +487,7 @@ const Column = ({
   );
 };
 
-const Main = ({ detailmail, newsLetters, activeMail }: MailType) => {
+const Main = ({ detailmail, newsLetters, activeMail, isLoadingDetail, isLoading }: any) => {
   const mainRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -447,35 +506,65 @@ const Main = ({ detailmail, newsLetters, activeMail }: MailType) => {
     >
       <div className="max-w-[700px] mx-auto mt-[30px]">
         <div>
-          <MainHeader
-            detailmail={detailmail}
-            newsLetters={newsLetters}
-          ></MainHeader>
+          {isLoading ? (
+            <div className="flex flex-col gap-[10px] font-bold border-b-[1px] border-b-#E8E8E8 pb-[30px]">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-[40px] w-[200px]" />
+                <Skeleton className="h-[20px] w-full" />
+                <Skeleton className="h-[20px] w-[80%]" />
+                <Skeleton className="h-[20px] w-[90%]" />
+              </div>
+              <div className="mt-10 space-y-4">
+                <Skeleton className="h-[200px] w-full" />
+                <Skeleton className="h-[200px] w-full" />
+                <Skeleton className="h-[200px] w-full" />
+              </div>
+            </div>
+          ) : (
+            <MainHeader
+              detailmail={detailmail}
+              newsLetters={newsLetters}
+              isLoadingDetail={isLoadingDetail}
+            ></MainHeader>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const MainHeader = ({ detailmail, newsLetters }: MailType) => {
+const MainHeader = ({ detailmail, newsLetters, isLoadingDetail }: any) => {
   return (
     <div className="flex flex-col gap-[10px] font-bold border-b-[1px] border-b-#E8E8E8 pb-[30px]">
       <MySummary
         summaryNewsLetterData={detailmail}
         newslettersubscribe={newsLetters}
+        isLoadingDetail={isLoadingDetail}
       />
 
-      {detailmail.map((data) => {
-        return data.html_body !== null ? (
-          <div
-            key={data.id}
-            className="mt-10"
-            dangerouslySetInnerHTML={{ __html: data.html_body }}
-          />
-        ) : (
-          <PageLoding />
-        );
-      })}
+      {isLoadingDetail ? (
+        <div className="mt-10 space-y-3">
+          <Skeleton className="h-[20px] w-full" />
+          <Skeleton className="h-[20px] w-[95%]" />
+          <Skeleton className="h-[20px] w-[90%]" />
+          <Skeleton className="h-[200px] w-full mt-4" />
+          <Skeleton className="h-[20px] w-full" />
+          <Skeleton className="h-[20px] w-[85%]" />
+          <Skeleton className="h-[200px] w-full mt-4" />
+        </div>
+      ) : (
+        detailmail.map((data: any) => {
+          return data.html_body !== null ? (
+            <div
+              key={data.id}
+              className="mt-10"
+              dangerouslySetInnerHTML={{ __html: data.html_body }}
+            />
+          ) : (
+            <PageLoding />
+          );
+        })
+      )}
     </div>
   );
 };

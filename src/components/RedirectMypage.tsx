@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { AxiosHeaders } from "axios";
 import { useNavigate } from "react-router-dom";
-import { getSlackToken, postSlackToken } from "../api/api";
+import { channelApi } from "../api/channel";
 import { sendEventToAmplitude } from "./Amplitude";
 import PageLoding from "./PageLoding";
 
@@ -16,12 +16,12 @@ const RedirectMypage = () => {
       const sendAccessToken = async () => {
         setLoading(true);
         try {
-          const response = await postSlackToken({ code: accessCode });
+          const response = await channelApi.postSlackToken({ code: accessCode });
           const responseHeaders = (response.headers as AxiosHeaders).get?.(
             "Location"
           );
           if (response.status === 201) {
-            const responseAmplitudeData = await getSlackToken(responseHeaders);
+            const responseAmplitudeData = await channelApi.getSlackToken(responseHeaders);
             sendEventToAmplitude("complete to add destination", {
               workspace: responseAmplitudeData.data.team_name,
               channel: responseAmplitudeData.data.name,

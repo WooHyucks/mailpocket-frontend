@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { readPageSubscribe, readPageUnSubscribe, Token } from "../../api/api";
+import { newsletterApi } from "../../api/newsletter";
+import { Token } from "../../api/utils";
 import { NavNewsLetterDataType } from "../../mobile/MobileMyPage";
 import { SummaryNewsLetterDataType } from "../../pages/ReadPage";
-import { NewsLetterDataType } from "../../pages/SubscribePage";
+import { NewsLetterDataType } from "../../api/newsletter/types";
 import { sendEventToAmplitude } from "../Amplitude";
-import MobileMenu, { MenuNewsletterDetailType } from "../Modal/MobileMenu";
+import MobileMenu from "../Modal/MobileMenu";
 import { SubscribeNewsLetterDataType } from "../Summary";
+import { Skeleton } from "../ui/skeleton";
 
 interface ReadNavNewsLetterDataType {
   ReadNavNewsLetterData: SummaryNewsLetterDataType[];
@@ -18,13 +20,13 @@ export const MobileReadNav = ({
   newslettersubscribe,
 }: ReadNavNewsLetterDataType) => {
   const authToken = Token();
-  const [subscribestatus, setSubscribeStatus] = useState(true);
   const truncate = (str: string, n: number) => {
     return str?.length > n ? str.substring(0, n) + "..." : str;
   };
   const [subscriptionStatusMap, setSubscriptionStatusMap] = useState<
     Record<number, boolean>
   >({});
+  const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (newslettersubscribe) {
@@ -39,8 +41,9 @@ export const MobileReadNav = ({
   }, [newslettersubscribe, ReadNavNewsLetterData]);
 
   const handleNewsLetterSelected = async (newsletterId: number) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
-      const response = await readPageSubscribe(newsletterId);
+      const response = await newsletterApi.readPageSubscribe(newsletterId);
       if (response.status === 201) {
         setSubscriptionStatusMap((prevMap) => ({
           ...prevMap,
@@ -49,12 +52,15 @@ export const MobileReadNav = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
   const handleNewsLetterUnSelected = async (newsletterId: number) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
-      const response = await readPageUnSubscribe(newsletterId);
+      const response = await newsletterApi.readPageUnSubscribe(newsletterId);
       if (response.status === 204) {
         setSubscriptionStatusMap((prevMap) => ({
           ...prevMap,
@@ -63,6 +69,8 @@ export const MobileReadNav = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -77,8 +85,8 @@ export const MobileReadNav = ({
           <div className="flex items-center justify-center gap-3">
             <img
               className="w-8"
-              src={`/images/${data.newsletter_id}.png`}
-              alt={String(data.newsletter_id)}
+              src={`/images/${data.name}.png`}
+              alt={String(data.name)}
             />
             <span className="text-sm font-semibold">
               {truncate(data.subject, 18)}
@@ -86,19 +94,29 @@ export const MobileReadNav = ({
           </div>
           {authToken ? (
             subscriptionStatusMap[data.newsletter_id] ? (
-              <span
-                className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold"
+              <button
+                disabled={loadingStates[data.newsletter_id]}
+                className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[60px]"
                 onClick={() => handleNewsLetterUnSelected(data.newsletter_id)}
               >
-                구독해제
-              </span>
+                {loadingStates[data.newsletter_id] ? (
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  "구독해제"
+                )}
+              </button>
             ) : (
-              <span
-                className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton"
+              <button
+                disabled={loadingStates[data.newsletter_id]}
+                className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[60px]"
                 onClick={() => handleNewsLetterSelected(data.newsletter_id)}
               >
-                구독하기
-              </span>
+                {loadingStates[data.newsletter_id] ? (
+                  <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  "구독하기"
+                )}
+              </button>
             )
           ) : (
             <Link
@@ -122,6 +140,7 @@ interface MobileMyPageNavType {
   setMyNewsLetterDetailKey: React.Dispatch<React.SetStateAction<string>>;
   activeMail: number
   setActiveMail: React.Dispatch<React.SetStateAction<number>>;
+  isLoading?: boolean;
 }
 
 export const MobileMyPageNav = ({
@@ -132,9 +151,11 @@ export const MobileMyPageNav = ({
   setMyNewsLetterDetailKey,
   activeMail,
   setActiveMail,
+  isLoading = false,
 }: MobileMyPageNavType) => {
   const [openModal, setOpenModal] = useState(false);
   const [subscriptionStatusMap, setSubscriptionStatusMap] = useState<Record<number, boolean>>({});
+  const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const truncate = (str: string, n: number) => {
     return str?.length > n ? str.substring(0, n) + "..." : str;
   };
@@ -158,8 +179,9 @@ export const MobileMyPageNav = ({
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
-      const response = await readPageSubscribe(newsletterId);
+      const response = await newsletterApi.readPageSubscribe(newsletterId);
       if (response.status === 201) {
         setSubscriptionStatusMap((prevMap) => ({
           ...prevMap,
@@ -171,6 +193,8 @@ export const MobileMyPageNav = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
@@ -178,8 +202,9 @@ export const MobileMyPageNav = ({
     newsletterId: number,
     newslettername: string
   ) => {
+    setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
-      const response = await readPageUnSubscribe(newsletterId);
+      const response = await newsletterApi.readPageUnSubscribe(newsletterId);
       if (response.status === 204) {
         setSubscriptionStatusMap((prevMap) => ({
           ...prevMap,
@@ -191,53 +216,78 @@ export const MobileMyPageNav = ({
       }
     } catch (error) {
       console.log("Api 데이터 불러오기 실패");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [newsletterId]: false }));
     }
   };
 
   return (
     <div className=" sticky top-0 z-10">
-      {MayPageNavNewsLetterData.map((data) => (
-        <div
-          key={data.newsletter_id}
-          className="bg-white border-b p-3 flex items-center justify-around gap-4 mb-3"
-        >
-          <img
-            className="w-5"
-            src="/images/menu.png"
-            alt="menu"
-            onClick={handleModalOpen}
-          />
-          <div className="flex items-center justify-center gap-2">
-            <img
-              className="w-8"
-              src={`/images/${data.newsletter_id}.png`}
-              alt={String(data.newsletter_id)}
-            />
-            <span className="text-sm font-semibold">
-              {truncate(data.subject, 16)}
-            </span>
+      {isLoading ? (
+        <div className="bg-white border-b p-3 flex items-center justify-around gap-4 mb-3">
+          <Skeleton className="w-5 h-5 rounded" />
+          <div className="flex items-center justify-center gap-2 flex-1">
+            <Skeleton className="w-8 h-8 rounded-full" />
+            <Skeleton className="h-4 w-32" />
           </div>
-          {subscriptionStatusMap[data.newsletter_id] ? (
-            <span
-              className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold"
-              onClick={() =>
-                handleNewsLetterUnSelected(data.newsletter_id, data.from_name)
-              }
-            >
-              구독해제
-            </span>
-          ) : (
-            <span
-              className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton"
-              onClick={() =>
-                handleNewsLetterSelected(data.newsletter_id, data.from_name)
-              }
-            >
-              구독하기
-            </span>
-          )}
+          <Skeleton className="h-8 w-16 rounded-xl" />
         </div>
-      ))}
+      ) : (
+        <>
+          {MayPageNavNewsLetterData.map((data) => (
+            <div
+              key={data.newsletter_id}
+              className="bg-white border-b p-3 flex items-center justify-around gap-4 mb-3"
+            >
+              <img
+                className="w-5 cursor-pointer"
+                src="/images/menu.png"
+                alt="menu"
+                onClick={handleModalOpen}
+              />
+              <div className="flex items-center justify-center gap-2">
+                <img
+                  className="w-8"
+                  src={`/images/${data.name}.png`}
+                  alt={String(data.name)}
+                />
+                <span className="text-sm font-semibold">
+                  {truncate(data.subject, 16)}
+                </span>
+              </div>
+              {subscriptionStatusMap[data.newsletter_id] ? (
+                <button
+                  disabled={loadingStates[data.newsletter_id]}
+                  className="p-2 rounded-xl border border-gray-200 bg-gray-200 text-gray-400 cursor-pointer text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[60px]"
+                  onClick={() =>
+                    handleNewsLetterUnSelected(data.newsletter_id, data.from_name)
+                  }
+                >
+                  {loadingStates[data.newsletter_id] ? (
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "구독해제"
+                  )}
+                </button>
+              ) : (
+                <button
+                  disabled={loadingStates[data.newsletter_id]}
+                  className="p-2 rounded-xl border border-customPurple text-customPurple text-xs font-bold cursor-pointer bg-subscribebutton disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[60px]"
+                  onClick={() =>
+                    handleNewsLetterSelected(data.newsletter_id, data.from_name)
+                  }
+                >
+                  {loadingStates[data.newsletter_id] ? (
+                    <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "구독하기"
+                  )}
+                </button>
+              )}
+            </div>
+          ))}
+        </>
+      )}
       {openModal && (
         <MobileMenu
           setOpenModal={setOpenModal}

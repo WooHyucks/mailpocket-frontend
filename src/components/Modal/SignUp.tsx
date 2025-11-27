@@ -2,7 +2,9 @@ import Cookies from 'js-cookie'
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useNavigate } from 'react-router-dom'
-import { postSignUpData, Token } from '../../api/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { authApi } from '../../api/Auth';
+import { Token } from '../../api/utils';
 import { isMobile } from '../../App'
 import useOnClickOutside from '../../hooks/useOnClickOutside'
 import { AmplitudeSetUserId, sendEventToAmplitude } from '../Amplitude'
@@ -25,6 +27,7 @@ const SignUp = ({ setAuthOpenModal, setSignUpOpenModal }: SignUpModalType) => {
   const [signInOpenModal, setSignInOpenModal] = useState(false)
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const authToken = Token();
   const ref = useRef<HTMLDivElement | null>(null);
   useOnClickOutside(ref, () => {
@@ -51,12 +54,13 @@ const SignUp = ({ setAuthOpenModal, setSignUpOpenModal }: SignUpModalType) => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await postSignUpData(formData);
-      if (response.status === 201) {
-        Cookies.set("authToken", response.data, {
+      const response = await authApi.postSignUpData(formData);
+      if (response.status === 201 || response.status === 200) {
+        const token = typeof response.data === 'string' ? response.data.trim() : response.data;
+        Cookies.set("authToken", token, {
           expires: 30,
         });
-        await AmplitudeSetUserId()
+        await AmplitudeSetUserId(queryClient)
         sendEventToAmplitude("complete sign up", "")
         isMobile ? navigate("/mobilemypage") : navigate("/");
       }

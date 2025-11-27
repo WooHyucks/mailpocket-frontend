@@ -1,17 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { getChannelData, deleteChannelData } from "../../api/api";
+import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { channelApi } from "../../api/channel";
+import { useChannelData } from "../../queries/channel";
+import { QUERY_KEYS } from "../../queries/queryKeys";
 import { Link } from "react-router-dom";
 import { sendEventToAmplitude } from "../Amplitude";
 
 export const SettingModal = ({ setOpenModal, newsLetters, openModal }: any) => {
-  const [channels, setChannels] = useState([]);
-
-  useEffect(() => {
-    let channelData = getChannelData("/channel");
-    channelData.then((result: any) => {
-      setChannels(result.data);
-    });
-  }, [openModal]);
+  const queryClient = useQueryClient();
+  const { data: channels = [] } = useChannelData("/channel", openModal);
 
   return (
     <div className="w-full h-full fixed top-0">
@@ -54,11 +51,8 @@ export const SettingModal = ({ setOpenModal, newsLetters, openModal }: any) => {
                             <div
                               className="w-10 cursor-pointer"
                               onClick={async () => {
-                                await deleteChannelData(channel.id);
-                                let channelData = await getChannelData(
-                                  "/channel"
-                                );
-                                setChannels(channelData.data);
+                                await channelApi.deleteChannelData(channel.id);
+                                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CHANNELS] });
                               }}
                             >
                               <img className="w-[35px]" src="images/archive.svg" alt="as" />

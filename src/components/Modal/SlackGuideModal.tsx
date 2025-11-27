@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import useOnClickOutside from "../../hooks/useOnClickOutside";
-import { NewsLetterDataType } from "../../pages/SubscribePage";
+import { NewsLetterDataType } from "../../api/newsletter/types";
 import { Link, useNavigate } from "react-router-dom";
 import { isMobile } from "../../App";
 import { sendEventToAmplitude } from "../Amplitude";

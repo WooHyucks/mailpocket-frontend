@@ -1,15 +1,17 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { NavigateFunction } from "react-router-dom";
+import { QueryClient } from "@tanstack/react-query";
 import { AmplitudeSetUserId, sendEventToAmplitude } from "../Amplitude";
 
 
-export const sendAccessToken = async (accessToken: string, apiUrl: string, type: string, navigate: NavigateFunction) => {
+export const sendAccessToken = async (accessToken: string, apiUrl: string, type: string, navigate: NavigateFunction, queryClient?: QueryClient) => {
   try {
     const response = await axios.post(apiUrl, { token: accessToken });
-    if (response.status === 201) {
-      Cookies.set("authToken", response.data, { expires: 30 });
-      await AmplitudeSetUserId()
+    if (response.status === 201 || response.status === 200) {
+      const token = typeof response.data === 'string' ? response.data.trim() : response.data;
+      Cookies.set("authToken", token, { expires: 30 });
+      await AmplitudeSetUserId(queryClient)
       sendEventToAmplitude("complete 3rd party sign in", { "provider type": type })
       navigate("/");
     } else {

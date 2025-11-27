@@ -3,9 +3,10 @@ import { MobileReadNav } from "../../components/mobileComponent/MobileNav";
 import MobileSeeMore from "../../components/mobileComponent/MobileSeeMore";
 import MobileSummary from "../../components/mobileComponent/MobileSummary";
 import { useLocation } from "react-router-dom";
-import { decodedToken, getReadMailData, getSubscribeData, Token } from "../../api/api";
+import { decodedToken, Token } from "../../api/utils";
+import { useReadMailData, useSubscribeData } from "../../queries/newsletter";
 import { sendEventToAmplitude } from "../../components/Amplitude";
-import { SummaryItem } from "../../pages/SubscribePage";
+import { SummaryItem } from "../../api/newsletter/types";
 import PageLoding from "../../components/PageLoding";
 import { SubscribeNewsLetterDataType } from "../../components/Summary";
 import { isSameDay, format } from "date-fns";
@@ -26,10 +27,6 @@ export interface readmaildataType {
 }
 
 const MobileReadPage = () => {
-  const [readmaildata, setReadMailData] = useState<readmaildataType[]>([]);
-  const [newslettersubscribe, setNewsLettersubscribe] = useState<
-    SubscribeNewsLetterDataType[]
-  >([]);
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const mail = searchParams.get("mail");
@@ -37,6 +34,13 @@ const MobileReadPage = () => {
   const authTokenDecode = decodedToken();
   const mainRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+
+  const { data: readmaildataItem } = useReadMailData(mail, !!mail);
+  const readmaildata = readmaildataItem ? [readmaildataItem] : [];
+  const { data: newslettersubscribe = [] } = useSubscribeData(
+    "/newsletter?&subscribe_status=subscribed&sort_type=recent",
+    !!authToken && authTokenDecode !== false
+  );
   const bottomSheetSetter = () => {
     const container = mainRef.current;
     const today: string = format(new Date(), "yyyy-MM-dd");
@@ -73,34 +77,14 @@ const MobileReadPage = () => {
     }
   }, []);
 
-  const handleGetNewsLetterData = async () => {
-    try {
-      const responesSubscribe = await getSubscribeData(
-        "/newsletter?&subscribe_status=subscribed&sort_type=recent"
-      );
-      setNewsLettersubscribe(responesSubscribe.data);
-    } catch (error) {
-      console.log("Api 데이터 불러오기 실패");
-    }
-  };
-
-  const handleGetData = async () => {
-    try {
-      const response = await getReadMailData(mail);
-      setReadMailData([response.data]);
-      sendEventToAmplitude("view article detail", {
-        "article name": response.data.from_name,
-        "post name": response.data.subject,
-      });
-    } catch (error) {
-      console.log("Api 데이터 불러오기 실패", error);
-    }
-  };
-
   useEffect(() => {
-    handleGetData();
-    handleGetNewsLetterData();
-  }, [location]);
+    if (readmaildataItem) {
+      sendEventToAmplitude("view article detail", {
+        "article name": readmaildataItem.from_name,
+        "post name": readmaildataItem.subject,
+      });
+    }
+  }, [readmaildataItem]);
 
   return (
     <div className="overflow-auto h-[100vh] custom-scrollbar" ref={mainRef}>

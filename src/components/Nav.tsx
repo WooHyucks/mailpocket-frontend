@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { decodedToken, Token } from "../api/api";
+import { decodedToken, Token } from "../api/utils";
 import SignUp from "./Modal/SignUp";
 
 interface NavPropsType {

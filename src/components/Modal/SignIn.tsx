@@ -1,8 +1,8 @@
 import Cookies from 'js-cookie'
 import { useEffect, useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useNavigate } from 'react-router-dom'
-import { postSignInData, Token } from '../../api/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { authApi } from '../../api/Auth';
 import { isMobile } from '../../App'
 import useOnClickOutside from '../../hooks/useOnClickOutside'
 import { AmplitudeSetUserId, sendEventToAmplitude } from '../Amplitude'
@@ -22,7 +22,7 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
   const [signUpOpenModal, setSignUpOpenModal] = useState(false)
 
   const navigate = useNavigate();
-  const authToken = Token();
+  const queryClient = useQueryClient();
   const ref = useRef<HTMLDivElement | null>(null);
   useOnClickOutside(ref, () => {
     setAuthOpenModal(false);
@@ -49,12 +49,13 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await postSignInData(formData);
-      if (response.status === 201) {
-        Cookies.set("authToken", response.data, {
+      const response = await authApi.postSignInData(formData);
+      if (response.status === 200 || response.status === 201) {
+        const token = typeof response.data === 'string' ? response.data.trim() : response.data;
+        Cookies.set("authToken", token, {
           expires: 30,
         });
-        await AmplitudeSetUserId()
+        await AmplitudeSetUserId(queryClient)
         sendEventToAmplitude("complete sign in", "")
         isMobile ? navigate("/mobilemypage") : navigate("/");
       }
@@ -74,7 +75,7 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
 
   return (
     <div className='text-center mx-auto max-w-900 h-auto'>
-      <div className="fixed inset-0 bg-black bg-opacity-20 flex justify-center items-center">
+      <div className="fixed inset-0 bg-black bg-opacity-20 flex justify-center items-center z-10">
         <div ref={ref}
           className='py-3 px-7 rounded-lg relative flex justify-center flex-col max-h-400 w-[430px] bg-white'>
           <div

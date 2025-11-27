@@ -1,19 +1,18 @@
-import { useEffect } from "react";
+import { CategorySkeleton } from "./CategorySkeleton";
 
 const Category = ({
   activeCategory,
   setActiveCategory,
   categories,
-  setSubscribeable,
+  isLoading,
 }: any) => {
-  useEffect(() => {
-    setSubscribeable([]);
-  }, [activeCategory]);
+  if (isLoading) {
+    return <CategorySkeleton />;
+  }
 
   return (
     <>
       {categories
-        .filter((category: any) => category.operating_status === true)
         .map((category: any) => {
           return (
             <button
@@ -26,7 +25,7 @@ const Category = ({
                 (!activeCategory && category.id === 0)
                   ? "bg-[#635C6D] text-white"
                   : "bg-[#EBEBEB]"
-              } p-2 rounded-xl font-bold text-xs`}
+              } p-2 rounded-xl font-bold text-xs whitespace-nowrap`}
             >
               {category.name}
             </button>
