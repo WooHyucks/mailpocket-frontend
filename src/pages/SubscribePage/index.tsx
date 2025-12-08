@@ -416,7 +416,21 @@ const Subscribe = () => {
               )}
             </div>
             {isFetching && subscribeable.length === 0 ? (
-              <Spinner />
+              <div className="flex justify-center items-center py-10">
+                <Spinner />
+              </div>
+            ) : !isFetching && subscribeable.filter((data) => data && data.id && !newslettersubscribe.some((subscribed) => subscribed && subscribed.id === data.id)).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="bg-gradient-to-br from-purple-50/50 to-white p-8 rounded-2xl border border-purple-100 shadow-sm max-w-md w-full text-center">
+                  <div className="text-5xl mb-4">📭</div>
+                  <p className="text-base md:text-lg font-extrabold text-gray-800 mb-2">
+                    아직 뉴스레터가 도착하지 않았어요
+                  </p>
+                  <p className="text-sm text-gray-600 font-semibold">
+                    새로운 뉴스레터가 준비되면 알려드릴게요. 🔔
+                  </p>
+                </div>
+              </div>
             ) : (
             <div className="grid grid-cols-4 md:grid-cols-1 gap-4 md:gap-5 items-start">
               {subscribeable
