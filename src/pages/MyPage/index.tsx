@@ -34,6 +34,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { format, isSameDay } from "date-fns";
 import useScrollController from "../../hooks/useScrollController";
 import useSaveLastViewDate from "../../hooks/useSaveLastVIewDate";
+import { useToast } from "../../components/Toast";
 
 export type ChannelDataType = {
   id: number;
@@ -60,9 +61,10 @@ const MyPage = () => {
   const authToken = Token();
   const authTokenDecode = decodedToken();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   
   const { data: newsLetters = [], isLoading: isLoadingNewsLetters } = useSubscribeData(
-    "/newsletter?&subscribe_status=subscribed&sort_type=recent",
+    "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking",
     !!authToken && authTokenDecode !== false
   );
 
@@ -80,15 +82,17 @@ const MyPage = () => {
       sendEventToAmplitude("view my page", "");
       // 로딩이 완료된 후에만 체크
       if (!isLoadingNewsLetters) {
+        console.log(newsLetters);
         if (newsLetters.length > 0) {
+          console.log(newsLetters);
           setActiveTab(newsLetters[0].id);
         } else if (newsLetters.length === 0) {
-          window.alert("구독중인 뉴스레터가 없습니다.");
+          showToast("구독중인 뉴스레터가 없습니다.", { type: "info" });
           navigate("/subscribe");
         }
       }
     }
-  }, [authToken, navigate, newsLetters, isLoadingNewsLetters]);
+  }, [authToken, navigate, newsLetters, isLoadingNewsLetters, showToast]);
 
   const handleMail = async (id: any) => {
     const data = await queryClient.fetchQuery({

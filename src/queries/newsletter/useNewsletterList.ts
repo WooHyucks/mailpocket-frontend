@@ -6,7 +6,7 @@ import { QUERY_KEYS } from "../queryKeys";
 export const useNewsletterList = (category: number = 0) => {
   return useInfiniteQuery({
     queryKey: [QUERY_KEYS.NEWSLETTER_LIST, category],
-    queryFn: ({ pageParam }: { pageParam: number | undefined }) => {
+    queryFn: async ({ pageParam = null }) => {
       let params: Params = {
         in_mail: true,
         subscribe_status: "subscribable",
@@ -14,7 +14,7 @@ export const useNewsletterList = (category: number = 0) => {
       };
 
       // cursor가 있으면 추가 (첫 페이지는 cursor 없음)
-      if (pageParam !== undefined) {
+      if (pageParam !== undefined && pageParam !== null) {
         params.cursor = String(pageParam);
       }
 
@@ -22,7 +22,9 @@ export const useNewsletterList = (category: number = 0) => {
         params.category_id = category;
       }
 
-      return newsletterApi.getNewsletterData("/newsletter", params).then((response) => {
+      try {
+        const response = await newsletterApi.getNewsletterData("/newsletter", params);
+
         // API 응답 구조 확인
         // response.data가 배열인지 객체인지 확인
         let dataArray: any[] = [];
@@ -47,39 +49,46 @@ export const useNewsletterList = (category: number = 0) => {
         }
         
         return {
-          data: dataArray,
+          data: Array.isArray(dataArray) ? dataArray : [],
           nextCursor: nextCursor,
         };
-      });
+      } catch (error) {
+        // 실패 시에도 구조를 보장해 getNextPageParam에서 undefined 접근을 방지
+        return { data: [], nextCursor: undefined };
+      }
     },
     getNextPageParam: (lastPage, allPages) => {
-      // API 응답에 nextCursor가 있으면 우선 사용
-      if (lastPage.nextCursor !== undefined && lastPage.nextCursor !== null) {
-        return Number(lastPage.nextCursor);
+      // lastPage가 없거나 객체가 아니면 종료
+      if (!lastPage || typeof lastPage !== "object") return undefined;
+
+      const dataArray = Array.isArray((lastPage as any).data) ? (lastPage as any).data : [];
+      const nextCursorValue = (lastPage as any).nextCursor;
+
+      // 서버 nextCursor가 있으면 그대로 사용
+      if (nextCursorValue !== undefined && nextCursorValue !== null) {
+        const next = Number(nextCursorValue);
+        return Number.isNaN(next) ? undefined : next;
       }
-      
-      // nextCursor가 없으면 데이터 개수 기반으로 계산
-      // 모든 페이지의 데이터 개수를 합산하여 다음 cursor 계산
-      // 첫 페이지: 0개 → 다음 cursor = 8 (8개 받음)
-      // 두 번째: 8개 → 다음 cursor = 16 (8개 더 받음)
-      // 세 번째: 16개 → 다음 cursor = 24 (8개 더 받음)
-      const totalCount = allPages.reduce((sum, page) => {
-        return sum + (page.data?.length || 0);
-      }, 0);
-      
-      // 마지막 페이지의 데이터 개수 확인
-      const lastPageDataCount = lastPage.data?.length || 0;
-      
-      // 마지막 페이지에 데이터가 있고, 8개를 받았으면 다음 페이지가 있을 가능성이 있음
-      // 하지만 8개 미만이면 더 이상 데이터가 없는 것으로 판단
-      if (lastPageDataCount >= 8) {
-        return totalCount;
+
+      // 데이터가 없거나 비어있으면 종료
+      if (!dataArray || dataArray.length === 0) {
+        return undefined;
       }
-      
-      // 8개 미만이면 더 이상 데이터가 없음
-      return undefined;
+
+      // 백엔드 nextCursor가 없을 때, 누적 개수 기반 커서(8개 페이징 기준)로 추론
+      const totalCount = Array.isArray(allPages)
+        ? allPages.reduce((sum, page: any) => {
+            const arr = Array.isArray(page?.data) ? page.data : [];
+            return sum + arr.length;
+          }, 0)
+        : 0;
+
+      // 마지막 페이지가 8개 미만이면 더 이상 없음
+      if (dataArray.length < 8) return undefined;
+
+      return totalCount;
     },
-    initialPageParam: undefined,
+    initialPageParam: null as number | null,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
