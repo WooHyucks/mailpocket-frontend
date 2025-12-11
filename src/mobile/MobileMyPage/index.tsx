@@ -9,8 +9,9 @@ import { sendEventToAmplitude } from "../../components/Amplitude";
 import { MobileMyPageNav } from "../../components/mobileComponent/MobileNav";
 import MobileSummary from "../../components/mobileComponent/MobileSummary";
 import PageLoding from "../../components/PageLoding";
-import { NewsLetterDataType, SummaryItem } from "../../api/newsletter/types";
+import { SummaryItem } from "../../api/newsletter/types";
 import { Skeleton } from "../../components/ui/skeleton";
+import { useToast } from "../../components/Toast";
 
 export interface NavNewsLetterDataType {
   id: number;
@@ -39,9 +40,15 @@ const MobileMyPage = () => {
   const authTokenDecode = decodedToken();
   const mainRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const showToast = useToast();
 
-  const { data: myNewsLetter = [], isLoading: isLoadingNewsLetters } = useSubscribeData(
-    "/newsletter?&subscribe_status=subscribed&sort_type=recent",
+  const {
+    data: myNewsLetter = [],
+    isLoading: isLoadingNewsLetters,
+    isFetching: isFetchingNewsLetters,
+    isFetched: isFetchedNewsLetters,
+  } = useSubscribeData(
+    "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking",
     !!authToken && authTokenDecode !== false
   );
 
@@ -63,15 +70,24 @@ const MobileMyPage = () => {
       navigate("/landingpage");
     } else {
       sendEventToAmplitude("view my page", "");
-      // 로딩이 완료된 후에만 체크
-      if (!isLoadingNewsLetters) {
+      // 로딩/패칭이 완전히 끝난 후에만 빈 상태 처리
+      if (!isLoadingNewsLetters && !isFetchingNewsLetters && isFetchedNewsLetters) {
         if (myNewsLetter.length === 0) {
-          window.alert("구독중인 뉴스레터가 없습니다.");
+          showToast("구독중인 뉴스레터가 없습니다.", { type: "info" });
           navigate("/mobileSubscribe");
         }
       }
     }
-  }, [authToken, authTokenDecode, navigate, isLoadingNewsLetters, myNewsLetter]);
+  }, [
+    authToken,
+    authTokenDecode,
+    navigate,
+    isLoadingNewsLetters,
+    isFetchingNewsLetters,
+    isFetchedNewsLetters,
+    myNewsLetter,
+    showToast,
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {

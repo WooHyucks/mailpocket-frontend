@@ -24,28 +24,35 @@ import SignIn from "../../components/Modal/SignIn";
 const MobileSubscribe = () => {
   const [subscribeable, setSubscribeable] = useState<NewsLetterDataType[]>([]);
   const [newsletterchecked, setNewsLetterChecked] = useState<number[]>([]);
+  const [subscribedLocal, setSubscribedLocal] = useState<NewsLetterDataType[]>([]);
   const navigate = useNavigate();
   const [slackGuideOpenModal, setSlackGuideOpenModal] = useState(false);
   const [authOpenModal, setAuthOpenModal] = useState(false);
   const [isActiveMailModal, setIsActiveMailModal] = useState(false);
-  const [acitveMailData, setActiveMailData] = useState();
+  const [acitveMailData, setActiveMailData] = useState<NewsLetterDataType | null>(null);
   const [activeCategory, setActiveCategory] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
   const authTokenDecode = decodedToken();
   const authToken = Token();
   const ref = useRef<HTMLDivElement | null>(null);
   const pageRef = useIntersectionObserver(ref, {});
   const isPageEnd = pageRef?.isIntersecting;
   const queryClient = useQueryClient();
+  const REDIRECT_FLAG_KEY = "mobile-subscribe-initial-redirect";
+  const initialRedirectDoneRef = useRef(
+    typeof window !== "undefined" && sessionStorage.getItem(REDIRECT_FLAG_KEY) === "true"
+  );
 
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
   const { data: newsletterListData, isFetching, fetchNextPage, isFetchingNextPage, hasNextPage } = useNewsletterList(activeCategory);
   const newsletterListDataTyped = newsletterListData as InfiniteData<NewsletterResponse & { nextCursor: number | null }> | undefined;
-  const { data: newslettersubscribe = [] } = useSubscribeData(
-    "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking",
-    !!authToken
-  );
-  const subscribelength = newslettersubscribe.length;
+  // 구독중 데이터는 항상 조회 (로그인 여부는 서버에서 검증)
+  const {
+    data: newslettersubscribe = [],
+    isLoading: isLoadingSubscribed,
+    isFetching: isFetchingSubscribed,
+    isFetched: isFetchedSubscribed,
+    refetch: refetchSubscribed,
+  } = useSubscribeData("/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking", !!authToken, authToken);
 
   useEffect(() => {
     if (!authToken) {
@@ -53,6 +60,39 @@ const MobileSubscribe = () => {
     }
     sendEventToAmplitude("view select article", "");
   }, [authToken, navigate]);
+
+  // 토큰이 바뀔 때마다 초기 리다이렉트 여부 리셋 (새 로그인)
+  useEffect(() => {
+    if (!authToken) {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(REDIRECT_FLAG_KEY);
+      }
+      initialRedirectDoneRef.current = false;
+      return;
+    }
+    initialRedirectDoneRef.current =
+      typeof window !== "undefined" && sessionStorage.getItem(REDIRECT_FLAG_KEY) === "true";
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    // 로그인 후에도 항상 구독 목록을 다시 요청
+    refetchSubscribed();
+  }, [authToken, refetchSubscribed]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (!isFetchedSubscribed || isLoadingSubscribed || isFetchingSubscribed) return;
+    // 로그인 직후 최초 한 번만 마이페이지로 이동
+    if (initialRedirectDoneRef.current) return;
+    if (newslettersubscribe.length > 0) {
+      initialRedirectDoneRef.current = true;
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(REDIRECT_FLAG_KEY, "true");
+      }
+      navigate("/mobileMyPage");
+    }
+  }, [authToken, isFetchedSubscribed, isLoadingSubscribed, isFetchingSubscribed, newslettersubscribe.length, navigate]);
 
   useEffect(() => {
     if (newsletterListDataTyped?.pages) {
@@ -101,10 +141,6 @@ const MobileSubscribe = () => {
   };
 
 
-  useEffect(() => {
-    handleNewsLetterSubcribeDataRenewal();
-  }, [newslettersubscribe]);
-
   const handleModalOpen = () => {
     if (authTokenDecode === false) {
       setAuthOpenModal(true);
@@ -113,16 +149,15 @@ const MobileSubscribe = () => {
     }
   };
 
-  const handleNewsLetterSubcribeDataRenewal = () => {
-    const newslettersubscribeId = newslettersubscribe.map((item) => item.id);
+  const handleNewsLetterSubcribeDataRenewal = useCallback(() => {
+    setSubscribedLocal(newslettersubscribe || []);
+    const newslettersubscribeId = (newslettersubscribe || []).map((item) => item.id);
     setNewsLetterChecked([...newslettersubscribeId]);
-  };
+  }, [newslettersubscribe]);
 
-
-
-  const truncate = (str: string, n: number) => {
-    return str?.length > n ? str.substring(0, n) + "..." : str;
-  };
+  useEffect(() => {
+    handleNewsLetterSubcribeDataRenewal();
+  }, [handleNewsLetterSubcribeDataRenewal]);
 
   return (
     <div className="mx-auto min-h-[100vh] bg-gradient-to-b from-white via-purple-50/20 to-white">
@@ -137,6 +172,8 @@ const MobileSubscribe = () => {
             subscribeable={subscribeable}
             setSubscribeable={setSubscribeable}
             activeCategory={activeCategory}
+            subscribedLocal={subscribedLocal}
+            setSubscribedLocal={setSubscribedLocal}
           ></MailModal>
         ) : (
           ""
@@ -170,26 +207,67 @@ const MobileSubscribe = () => {
         {/* Content Section */}
         <div className="mt-6">
           <div className="overflow-y-auto pb-4">
-            {/* Subscribed Newsletters */}
-            {Object.keys(newslettersubscribe).length > 0 ? (
+            {/* Subscribed Newsletters - Instagram style */}
+            {(isLoadingSubscribed || (isFetchingSubscribed && subscribedLocal.length === 0)) ? (
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-5 bg-gradient-to-b from-customPurple to-purple-600 rounded-full"></div>
-                  <h1 className="text-xl font-extrabold text-gray-800">
-                    구독중인 뉴스레터
-                  </h1>
+                  <h1 className="text-xl font-extrabold text-gray-800">구독중인 뉴스레터</h1>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                </div>
+                <div
+                  className="flex overflow-x-auto gap-4 subscribe-scrollbar pb-2"
+                  style={{ scrollbarWidth: "thin", scrollbarColor: "#8f20ff #f0f0f0" }}
+                >
+                  {[...Array(6)].map((_, idx) => (
+                    <div
+                      key={`mobile-subscribed-skeleton-${idx}`}
+                      className="flex flex-col items-center gap-2 w-[72px] flex-shrink-0"
+                    >
+                      <div className="p-[2px] rounded-full bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm">
+                        <div className="w-14 h-14 rounded-full bg-gray-200 animate-pulse"></div>
+                      </div>
+                      <div className="w-12 h-3 rounded-full bg-gray-200 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : subscribedLocal.length > 0 ? (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-5 bg-gradient-to-b from-customPurple to-purple-600 rounded-full"></div>
+                  <h1 className="text-xl font-extrabold text-gray-800">구독중인 뉴스레터</h1>
                   <span className="ml-2 px-2 py-0.5 bg-customPurple/10 text-customPurple text-xs font-bold rounded-full">
-                    {newslettersubscribe.length}
+                    {subscribedLocal.length}
                   </span>
                 </div>
-                <div className="flex whitespace-nowrap overflow-x-auto subscribe-scrollbar gap-4 pb-2">
-                  {newslettersubscribe.map((data) => (
-                    <div key={data.id} className="flex-shrink-0 min-w-[100px]">
-                      <NewsLetter
-                        setActiveMailData={setActiveMailData}
-                        setIsActiveMailModal={setIsActiveMailModal}
-                        data={data}
-                      ></NewsLetter>
+                <div
+                  className="flex overflow-x-auto gap-4 subscribe-scrollbar pb-2"
+                  style={{ scrollbarWidth: "thin", scrollbarColor: "#8f20ff #f0f0f0" }}
+                >
+                  {subscribedLocal.map((data) => (
+                    <div
+                      key={data.id}
+                      className="flex flex-col items-center gap-2 w-[72px] flex-shrink-0 cursor-pointer"
+                      onClick={() => {
+                        setActiveMailData(data);
+                        setIsActiveMailModal(true);
+                      }}
+                    >
+                      <div className="p-[2px] rounded-full bg-gradient-to-br from-customPurple to-purple-400 shadow-md">
+                        <div className="w-14 h-14 rounded-full overflow-hidden bg-white">
+                          <img
+                            className="w-full h-full object-cover"
+                            src={`/images/${data.name}.png`}
+                            alt={data.name}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-gray-800 font-semibold leading-tight text-center line-clamp-2 px-1">
+                        {data.name}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -225,7 +303,7 @@ const MobileSubscribe = () => {
               ) : (
               <div className="grid grid-cols-3 gap-4">
                 {subscribeable
-                  .filter((data) => data && data.id && !newslettersubscribe.some((subscribed) => subscribed && subscribed.id === data.id))
+                  .filter((data) => data && data.id && !subscribedLocal.some((subscribed) => subscribed && subscribed.id === data.id))
                   .map((data) => (
                     <div key={data.id} className="w-full">
                       <NewsLetter
@@ -235,6 +313,25 @@ const MobileSubscribe = () => {
                       ></NewsLetter>
                     </div>
                   ))}
+                {(isFetching || isFetchingNextPage) && subscribeable.length > 0 && (
+                  <>
+                    {[...Array(3)].map((_, idx) => (
+                      <div
+                        key={`newsletter-skeleton-${idx}`}
+                        className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm w-full min-w-[100px] h-[140px] animate-pulse"
+                      >
+                        <div className="mb-3 relative">
+                          <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full blur-sm"></div>
+                          <div className="size-12 rounded-full relative z-10 border-2 border-white shadow-md bg-gray-200"></div>
+                        </div>
+                        <div className="w-full text-center space-y-2">
+                          <div className="mx-auto h-3 w-[70%] rounded bg-gray-200"></div>
+                          <div className="mx-auto h-3 w-[55%] rounded bg-gray-200"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
               )}
               {/* Loading Spinner */}
@@ -307,14 +404,15 @@ const MailModal = ({
   subscribeable,
   setSubscribeable,
   activeCategory,
+  subscribedLocal,
+  setSubscribedLocal,
 }: any) => {
   const [isSub, setIsSub] = useState(false);
 
-  const hasId = (): any => {
-    return newslettersubscribe.some((subscribe: any) => {
-      return subscribe.id === acitveMailData.id;
-    });
-  };
+  const hasId = useCallback((): boolean => {
+    if (!acitveMailData) return false;
+    return newslettersubscribe.some((subscribe: any) => subscribe.id === acitveMailData.id);
+  }, [newslettersubscribe, acitveMailData]);
 
   const deleteSubscribe = (
     subscribeToDelete: NewsLetterDataType,
@@ -326,9 +424,11 @@ const MailModal = ({
   };
 
   useEffect(() => {
-    let result = hasId();
-    setIsSub(result);
-  }, []);
+    if (!acitveMailData) return;
+    setIsSub(hasId());
+  }, [hasId, acitveMailData]);
+
+  if (!acitveMailData) return null;
 
   return (
     <div className="w-full h-full fixed top-0 left-0 z-50">
@@ -400,14 +500,15 @@ const MailModal = ({
                   onClick={async () => {
                     setIsSub(false);
                     try {
-                      let response = await newsletterApi.readPageUnSubscribe(
+                      await newsletterApi.readPageUnSubscribe(
                         acitveMailData.id
                       );
                       const result = deleteSubscribe(
                         acitveMailData,
-                        newslettersubscribe
+                        subscribedLocal
                       );
 
+                      setSubscribedLocal(result);
                       queryClient.setQueryData(
                         [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"],
                         result
@@ -439,17 +540,26 @@ const MailModal = ({
                     setIsActiveMailModal(false);
                     setIsSub(true);
                     try {
-                      let response = await newsletterApi.readPageSubscribe(
+                        await newsletterApi.readPageSubscribe(
                         acitveMailData.id
                       );
+                      // optimistic: remove from subscribable list
                       const result = deleteSubscribe(
                         acitveMailData,
                         subscribeable
                       );
                       setSubscribeable(result);
+                      // optimistic: add to subscribed cache + local state
+                      setSubscribedLocal((prev: NewsLetterDataType[]) => {
+                        if (prev.find((item) => item.id === acitveMailData.id)) return prev;
+                        return [acitveMailData, ...prev];
+                      });
                       queryClient.setQueryData(
                         [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"],
-                        [acitveMailData, ...newslettersubscribe]
+                        (oldData: NewsLetterDataType[] = []) => {
+                          if (oldData.find((item) => item.id === acitveMailData.id)) return oldData;
+                          return [acitveMailData, ...oldData];
+                        }
                       );
                       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.NEWSLETTER_LIST] });
                       sendEventToAmplitude("select article", {

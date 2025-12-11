@@ -1,15 +1,20 @@
 import Cookies from 'js-cookie';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/Auth';
 import { sendEventToAmplitude } from '../../components/Amplitude';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
+    // 랜딩 진입 시 토큰/캐시 정리
+    Cookies.remove("authToken");
+    queryClient.clear();
     sendEventToAmplitude('view landing page', '');
-  }, []);
+  }, [queryClient]);
 
   const handlePostUserData = async () => {
     try {

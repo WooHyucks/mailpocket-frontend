@@ -122,11 +122,11 @@ code {
 }
 
 .authcontainer-submit_box {
-  @apply border rounded-lg flex justify-center items-center w-full h-12 md:h-11;
+  @apply border rounded-lg flex px-3 py-3 items-center w-full h-12 md:h-11;
 }
 
 .authcontainer-submit_data {
-  @apply w-[300px] h-9 border-none text-sm md:w-[280px] md:h-6 md:text-base;
+  @apply w-[300px] h-9 border-none text-sm md:w-[280px] md:h-6;
 }
 
 .authcontainer-submit_title {

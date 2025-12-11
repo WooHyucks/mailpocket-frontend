@@ -8,6 +8,7 @@ import useOnClickOutside from '../../hooks/useOnClickOutside'
 import { AmplitudeSetUserId, sendEventToAmplitude } from '../Amplitude'
 import { GoogleLogin, KakaoLogin, NaverLogin } from '../Oauth/SocialPlatformLogin'
 import SignUp from './SignUp'
+import { useToast } from "../Toast";
 
 interface SignInModalType {
   setAuthOpenModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -20,6 +21,7 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
   })
   const [notAllow, setNotAllow] = useState(true);
   const [signUpOpenModal, setSignUpOpenModal] = useState(false)
+  const showToast = useToast();
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -49,7 +51,15 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await authApi.postSignInData(formData);
+      const identifierTrim = formData.identifier.trim();
+      const fullEmail = identifierTrim.endsWith("@mailpocket.shop")
+        ? identifierTrim
+        : `${identifierTrim}@mailpocket.shop`;
+
+      const response = await authApi.postSignInData({
+        ...formData,
+        identifier: fullEmail,
+      });
       if (response.status === 200 || response.status === 201) {
         const token = typeof response.data === 'string' ? response.data.trim() : response.data;
         Cookies.set("authToken", token, {
@@ -60,13 +70,15 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
         isMobile ? navigate("/mobilemypage") : navigate("/");
       }
     } catch (error) {
-      alert("아이디 및 비밀번호를 확인해주세요.");
+      showToast("아이디 및 비밀번호를 확인해주세요.", { type: "error" });
     }
   };
 
 
   useEffect(() => {
-    if (formData.identifier.length > 0 && formData.password.length > 0) {
+    const hasId = formData.identifier.trim().length > 0;
+    const hasPw = formData.password.length > 0;
+    if (hasId && hasPw) {
       setNotAllow(false);
       return;
     }
@@ -99,14 +111,21 @@ const SignIn = ({ setAuthOpenModal }: SignInModalType) => {
               <NaverLogin />
             </div>
             <div className='mt-4 mb-1 text-gray-400  text-xs  font-semibold'>또는</div>
-            <div className='authcontainer-submit_box my-4'>
-              <input className='authcontainer-submit_data  placeholder-gray-500  placeholder:font-bold'
-                type="text"
-                name="identifier"
-                value={formData.identifier}
-                placeholder=' 아이디'
-                onChange={handleInputChange}
-              />
+            <div className='my-4'>
+              <div className="flex items-center gap-1">
+                <input
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-3 focus:outline-none focus:ring-2 focus:ring-customPurple focus:border-customPurple text-sm placeholder-gray-500 placeholder:font-semibold"
+                  type="text"
+                  name="identifier"
+                  placeholder="아이디"
+                  value={formData.identifier}
+                  onChange={handleInputChange}
+                />
+                <div className="px-3 py-3 rounded-lg bg-gray-100 text-sm font-bold text-gray-700 border border-gray-200 whitespace-nowrap">
+                  @mailpocket.shop
+                </div>
+              </div>
+
             </div>
 
             <div className='authcontainer-submit_box'>

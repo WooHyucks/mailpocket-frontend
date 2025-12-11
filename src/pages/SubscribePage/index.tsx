@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { sendEventToAmplitude } from "../../components/Amplitude";
 import Nav from "../../components/Nav";
@@ -27,6 +27,8 @@ const Subscribe = () => {
   const [authOpenModal, setAuthOpenModal] = useState(false);
   const [slackGuideOpenModal, setSlackGuideOpenModal] = useState(false);
   const [activeCategory, setActiveCategory] = useState(0);
+  const [selectedSubscribed, setSelectedSubscribed] = useState<NewsLetterDataType | null>(null);
+  const [isSubscribedModalOpen, setIsSubscribedModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
   const authTokenDecode = decodedToken();
@@ -36,10 +38,15 @@ const Subscribe = () => {
   const isPageEnd = pageRef?.isIntersecting;
 
   const { data: newsletterListData, isFetching, fetchNextPage, isFetchingNextPage, hasNextPage } = useNewsletterList(activeCategory);
-  const { data: newslettersubscribe = [] } = useSubscribeData(
+  const { data: newslettersubscribeRaw, isLoading: isLoadingSubscribed, refetch: refetchSubscribed } = useSubscribeData(
     "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking",
-    !!authToken
+    !!authToken,
+    authToken
   );
+  const newslettersubscribe = useMemo(() => {
+    if (Array.isArray(newslettersubscribeRaw)) return newslettersubscribeRaw;
+    return [] as NewsLetterDataType[];
+  }, [newslettersubscribeRaw]);
   const subscribelength = newslettersubscribe.length;
 
   const handleNewsLetterSeeMoreSelect = (newsletterid: number) => {
@@ -63,21 +70,42 @@ const Subscribe = () => {
     sendEventToAmplitude("view select article", "");
   }, [authToken, navigate]);
 
+  // 로그인 토큰 변경 시마다 구독중 목록 재호출
+  useEffect(() => {
+    if (!authToken) return;
+    refetchSubscribed();
+  }, [authToken, refetchSubscribed]);
+
+  // 구독 가능 목록을 페이지 데이터에서 만들고, 구독중인 항목은 제외 + 중복 제거
   useEffect(() => {
     if (newsletterListData?.pages) {
       const allData = newsletterListData.pages.flatMap((page: any) => page.data || []);
-      setSubscribeable(allData);
+      const filtered = allData.filter((item: NewsLetterDataType) => {
+        if (!item || !item.id) return false;
+        const isSubscribed = newslettersubscribe.some((sub: NewsLetterDataType) => sub && sub.id === item.id);
+        // 구독 리스트에 있더라도 subscriptionStatusMap이 false라면 구독 가능에 노출
+        if (isSubscribed && subscriptionStatusMap[item.id] !== false) return false;
+        return true;
+      });
+      // 중복 제거
+      const uniqueMap = new Map<number, NewsLetterDataType>();
+      filtered.forEach((item) => {
+        if (!uniqueMap.has(item.id)) {
+          uniqueMap.set(item.id, item);
+        }
+      });
+      setSubscribeable(Array.from(uniqueMap.values()));
     } else {
       setSubscribeable([]);
     }
-  }, [newsletterListData]);
+  }, [newsletterListData, newslettersubscribe, subscriptionStatusMap]);
 
   // 구독중인 뉴스레터 초기 상태 설정
   useEffect(() => {
     if (newslettersubscribe.length > 0) {
       setSubscriptionStatusMap((prevMap) => {
         const newSubscriptionStatusMap: Record<number, boolean> = { ...prevMap };
-        newslettersubscribe.forEach((newsletter) => {
+        newslettersubscribe.forEach((newsletter: NewsLetterDataType) => {
           // 구독중인 뉴스레터는 기본적으로 true (구독중 상태)
           // subscriptionStatusMap에 이미 false로 설정된 값이 있으면 유지, 없으면 true로 설정
           if (newSubscriptionStatusMap[newsletter.id] === undefined) {
@@ -117,7 +145,7 @@ const Subscribe = () => {
       } else {
         await sendEventToAmplitude("complete to select article", "");
         await sendEventToAmplitude("click add destination", "");
-        const url = "https://slack.com/oauth/v2/authorize?client_id=6427346365504.6466397212374&scope=incoming-webhook,team:read&user_scope=";
+        const url = "https://slack.com/oauth/v2/authorize?client_id=6427346365504.10094612908772&scope=incoming-webhook,team:read&user_scope=";
         window.open(url, "_blank");
       }
     } catch (error) {
@@ -130,6 +158,12 @@ const Subscribe = () => {
     bool: boolean,
     newslettername: string
   ) => {
+    // 인증 체크
+    if (!authToken || authTokenDecode === false) {
+      setAuthOpenModal(true);
+      return;
+    }
+    
     setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageSubscribe(newsletterId);
@@ -141,17 +175,17 @@ const Subscribe = () => {
         }));
         
         // 구독 가능한 목록에서 해당 뉴스레터 찾기
-        const newsletterToMove = subscribeable.find((item) => item.id === newsletterId);
+        const newsletterToMove = subscribeable.find((item: NewsLetterDataType) => item.id === newsletterId);
         
         if (newsletterToMove) {
           // 구독 가능한 목록에서 제거
-          setSubscribeable((prev) => prev.filter((item) => item.id !== newsletterId));
+          setSubscribeable((prev: NewsLetterDataType[]) => prev.filter((item: NewsLetterDataType) => item.id !== newsletterId));
           
           // 구독중인 목록 쿼리 업데이트
           queryClient.setQueryData<NewsLetterDataType[]>(
             [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"],
             (oldData = []) => {
-              if (!oldData.find((item) => item.id === newsletterId)) {
+              if (!oldData.find((item: NewsLetterDataType) => item.id === newsletterId)) {
                 return [...oldData, newsletterToMove];
               }
               return oldData;
@@ -162,6 +196,10 @@ const Subscribe = () => {
         // 구독중인 목록 쿼리 무효화하여 refetch
         queryClient.invalidateQueries({ 
           queryKey: [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"] 
+        });
+        // 구독 가능 목록도 다시 불러와서 즉시 반영
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.NEWSLETTER_LIST, activeCategory],
         });
       }
       sendEventToAmplitude("select article", {
@@ -179,6 +217,12 @@ const Subscribe = () => {
     bool: boolean,
     newslettername: string
   ) => {
+    // 인증 체크
+    if (!authToken || authTokenDecode === false) {
+      setAuthOpenModal(true);
+      return;
+    }
+    
     setLoadingStates((prev) => ({ ...prev, [newsletterId]: true }));
     try {
       const response = await newsletterApi.readPageUnSubscribe(newsletterId);
@@ -190,19 +234,19 @@ const Subscribe = () => {
         }));
         
         // 구독중인 목록에서 해당 뉴스레터 찾기
-        const newsletterToMove = newslettersubscribe.find((item) => item.id === newsletterId);
+        const newsletterToMove = newslettersubscribe.find((item: NewsLetterDataType) => item.id === newsletterId);
         
         if (newsletterToMove) {
           // 구독중인 목록 쿼리 업데이트 (제거)
           queryClient.setQueryData<NewsLetterDataType[]>(
             [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"],
-            (oldData = []) => oldData.filter((item) => item.id !== newsletterId)
+            (oldData = []) => oldData.filter((item: NewsLetterDataType) => item.id !== newsletterId)
           );
           
           // 구독 가능한 목록에 추가 (현재 카테고리와 일치하는 경우만)
           if (activeCategory === 0 || Number(newsletterToMove.category) === activeCategory) {
-            setSubscribeable((prev) => {
-              if (!prev.find((item) => item.id === newsletterId)) {
+            setSubscribeable((prev: NewsLetterDataType[]) => {
+              if (!prev.find((item: NewsLetterDataType) => item.id === newsletterId)) {
                 return [...prev, newsletterToMove];
               }
               return prev;
@@ -213,6 +257,10 @@ const Subscribe = () => {
         // 구독중인 목록 쿼리 무효화하여 refetch
         queryClient.invalidateQueries({ 
           queryKey: [QUERY_KEYS.NEWSLETTER_LIST, "/newsletter?in_mail=true&subscribe_status=subscribed&sort_type=ranking"] 
+        });
+        // 구독 가능 목록도 다시 불러와서 즉시 반영
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.NEWSLETTER_LIST, activeCategory],
         });
       }
       sendEventToAmplitude("unselect article", {
@@ -232,6 +280,26 @@ const Subscribe = () => {
     } else {
       setSlackGuideOpenModal(true);
     }
+  };
+
+  const openSubscribedModal = (newsletter: NewsLetterDataType) => {
+    // 인증 체크
+    if (!authToken || authTokenDecode === false) {
+      setAuthOpenModal(true);
+      return;
+    }
+    setSelectedSubscribed(newsletter);
+    setIsSubscribedModalOpen(true);
+  };
+
+  const closeSubscribedModal = () => {
+    setIsSubscribedModalOpen(false);
+    setSelectedSubscribed(null);
+  };
+
+  const handleUnsubscribeFromModal = async (newsletter: NewsLetterDataType) => {
+    await handleNewsLetterUnSelected(newsletter.id, true, newsletter.name);
+    closeSubscribedModal();
   };
 
   const truncate = (str: string, n: number) => {
@@ -267,7 +335,35 @@ const Subscribe = () => {
         <div className="mt-6">
           <div className="overflow-y-auto">
             <div className="md:p-3">
-              {Object.keys(newslettersubscribe).length > 0 ? (
+              {isLoadingSubscribed ? (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1 h-5 bg-gradient-to-b from-customPurple to-purple-600 rounded-full"></div>
+                    <h1 className="text-xl md:text-lg font-extrabold text-gray-800">
+                      구독중인 뉴스레터
+                    </h1>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-customPurple border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  </div>
+                  <div
+                    className="flex overflow-x-auto gap-4 custom-scrollbar-horizontal pb-[10px]"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "#8f20ff #f0f0f0" }}
+                  >
+                    {[...Array(6)].map((_, idx) => (
+                      <div
+                        key={`subscribed-skeleton-${idx}`}
+                        className="flex flex-col items-center gap-2 w-[72px] flex-shrink-0"
+                      >
+                        <div className="p-[2px] rounded-full bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm">
+                          <div className="w-14 h-14 rounded-full bg-gray-200 animate-pulse"></div>
+                        </div>
+                        <div className="w-12 h-3 rounded-full bg-gray-200 animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : newslettersubscribe.filter((item) => item && subscriptionStatusMap[item.id] !== false).length > 0 ? (
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-5 bg-gradient-to-b from-customPurple to-purple-600 rounded-full"></div>
@@ -279,112 +375,28 @@ const Subscribe = () => {
                     </span>
                   </div>
                   <div
-                    className="flex overflow-x-auto gap-4 custom-scrollbar-horizontal pb-[15px] cursor-pointer"
-                    style={{ scrollbarWidth: 'thin', scrollbarColor: '#8f20ff #f0f0f0' }}
+                    className="flex overflow-x-auto gap-4 custom-scrollbar-horizontal pb-[10px]"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "#8f20ff #f0f0f0" }}
                   >
-                    {newslettersubscribe.map((data) => (
+                    {newslettersubscribe
+                      .filter((data: NewsLetterDataType) => data && subscriptionStatusMap[data.id] !== false)
+                      .map((data: NewsLetterDataType) => (
                       <div
-                        className="flex-shrink-0 w-[285px] md:w-[285px] flex flex-col border border-gray-200 rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
-                        key={`subscribed-${data.id}`}
+                        key={`subscribed-story-${data.id}`}
+                        className="flex flex-col items-center gap-2 w-[72px] flex-shrink-0"
+                        onClick={() => openSubscribedModal(data)}
                       >
-                        <div className="relative bg-gradient-to-br from-purple-50/50 to-white">
-                          <div className="border-b border-gray-200 min-h-[80px] flex items-center p-4">
-                            <p className="font-extrabold text-sm md:text-base text-gray-800 leading-relaxed">
-                              {data.mail
-                                ? truncate(data.mail.subject, 35)
-                                : "해당 뉴스레터의 새 소식을 기다리고 있어요."}
-                            </p>
-                          </div>
-                          <div
-                            className={`h-[250px] w-full md:w-[285px] mb-7 ${seeMoreStates[data.id]
-                              ? "overflow-y-auto"
-                              : "overflow-hidden"
-                              } text-ellipsis custom-scrollbar px-5 py-4`}
-                          >
-                            {data.mail && data.mail.summary_list ? (
-                              Object.entries(data.mail.summary_list).map(
-                                ([key, value]) => (
-                                  <div className="mb-4 last:mb-0" key={key}>
-                                    <div className="bg-gradient-to-br from-purple-50/50 to-white p-4 rounded-xl border border-purple-100">
-                                      <p className="font-extrabold text-sm text-customPurple mb-2">{key}</p>
-                                      <p className="text-sm text-gray-700 font-semibold leading-relaxed">
-                                        {String(value)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                )
-                              )
-                            ) : (
-                              <div className="bg-gradient-to-br from-purple-50/50 to-white p-6 rounded-xl border border-purple-100 text-center">
-                                <p className="text-sm text-gray-600 font-semibold">
-                                  소식이 생기면 메일포켓이 빠르게 요약해서
-                                  전달해드릴게요.
-                                </p>
-                              </div>
-                            )}
-                            {data.mail && data.mail.summary_list && (
-                            <div className="absolute bottom-0 left-0 right-0">
-                            <button
-                              className="w-full md:py-2 flex justify-center border border-y bg-white  items-center text-blue-500 text-sm md:text-xs font-bold hover:text-blue-600"
-                              onClick={() =>
-                                handleNewsLetterSeeMoreSelect(data.id)
-                              }
-                            >
-                              {seeMoreStates[data.id] ? "닫기" : "더보기"}
-                            </button>
-                          </div>
-                            )}
+                        <div className="p-[2px] rounded-full bg-gradient-to-br from-customPurple to-purple-400 shadow-md">
+                          <div className="w-14 h-14 rounded-full overflow-hidden bg-white">
+                            <img
+                              className="w-full h-full object-cover"
+                              src={`/images/${data.name}.png`}
+                              alt={data.name}
+                            />
                           </div>
                         </div>
-                        <div className="flex justify-between items-center p-4   bg-gray-50/50">
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <div className="absolute inset-0 bg-gradient-to-br from-customPurple/20 to-purple-200/20 rounded-full blur-sm"></div>
-                              <img
-                                className="w-10 h-10 rounded-full relative z-10 border-2 border-white shadow-md"
-                                src={`/images/${data.name}.png`}
-                                alt="newslettericon"
-                              />
-                            </div>
-                            <span className="font-bold text-sm text-gray-800 md:w-[55px]">
-                              {data.name}
-                            </span>
-                          </div>
-                          {subscriptionStatusMap[data.id] === false ? (
-                            <button
-                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-customPurple to-purple-600 text-white text-xs font-bold cursor-pointer hover:from-purple-600 hover:to-customPurple transition-all duration-200 shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
-                              onClick={() =>
-                                handleNewsLetterSelected(data.id, false, data.name)
-                              }
-                              disabled={loadingStates[data.id]}
-                            >
-                              {loadingStates[data.id] ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  <span>구독하기</span>
-                                </>
-                              ) : (
-                                "구독하기"
-                              )}
-                            </button>
-                          ) : (
-                            <button
-                              className="px-4 py-2 rounded-xl border border-gray-300 bg-gray-200 text-gray-500 text-xs font-bold cursor-pointer hover:bg-gray-300 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
-                              onClick={() =>
-                                handleNewsLetterUnSelected(data.id, true, data.name)
-                              }
-                              disabled={loadingStates[data.id]}
-                            >
-                              {loadingStates[data.id] ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></div>
-                                  <span>구독해제</span>
-                                </>
-                              ) : (
-                                "구독해제"
-                              )}
-                            </button>
-                          )}
+                        <div className="text-[11px] text-gray-800 font-semibold leading-tight text-center line-clamp-2 px-1">
+                          {data.name}
                         </div>
                       </div>
                     ))}
@@ -432,24 +444,24 @@ const Subscribe = () => {
                 </div>
               </div>
             ) : (
-            <div className="grid grid-cols-4 md:grid-cols-1 gap-4 md:gap-5 items-start">
+            <div className="grid grid-cols-3 md:grid-cols-1 gap-6 md:gap-5 items-start">
               {subscribeable
-                .filter((data) => data && data.id && !newslettersubscribe.some((subscribed) => subscribed && subscribed.id === data.id))
+                .filter((data: NewsLetterDataType) => data && data.id && !newslettersubscribe.some((subscribed: NewsLetterDataType) => subscribed && subscribed.id === data.id))
                 .map((data, index) => (
                 <div
-                  className="flex flex-col justify-between w-full border border-gray-200 rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+                  className="flex flex-col justify-between w-full border border-gray-200 rounded-3xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden"
                   key={`subscribable-${data.id}-${index}`}
                 >
                   <div className="relative bg-gradient-to-br from-purple-50/50 to-white">
-                    <div className="border-b border-gray-200 min-h-[75px] flex items-center p-4">
-                      <p className="font-extrabold text-sm md:text-base text-gray-800 leading-relaxed">
+                    <div className="border-b border-gray-200 min-h-[90px] flex items-center p-5">
+                      <p className="font-extrabold text-base md:text-base text-gray-800 leading-relaxed line-clamp-2">
                         {data.mail
                           ? truncate(data.mail.subject, 35)
                           : "해당 뉴스레터의 새 소식을 기다리고 있어요."}
                       </p>
                     </div>
                     <div
-                      className={`h-[250px] mb-7 ${seeMoreStates[data.id]
+                      className={`h-[280px] mb-7 ${seeMoreStates[data.id]
                         ? "overflow-y-auto"
                         : "overflow-hidden"
                         } custom-scrollbar px-5 py-4`}
@@ -489,12 +501,12 @@ const Subscribe = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex justify-between items-center p-4 bg-gray-50/50">
+                  <div className="flex justify-between items-center p-5 bg-gray-50/50">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-customPurple/20 to-purple-200/20 rounded-full blur-sm"></div>
                         <img
-                          className="w-10 h-10 rounded-full relative z-10 border-2 border-white shadow-md"
+                          className="w-12 h-12 rounded-full relative z-10 border-2 border-white shadow-md"
                           src={`/images/${data.name}.png`}
                           alt="newslettericon"
                         />
@@ -503,44 +515,74 @@ const Subscribe = () => {
                         {data.name}
                       </span>
                     </div>
-                    {subscriptionStatusMap[data.id] ? (
-                      <button
-                        className="px-4 py-2 rounded-xl border border-gray-300 bg-gray-200 text-gray-500 text-xs font-bold cursor-pointer hover:bg-gray-300 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
-                        onClick={() =>
-                          handleNewsLetterUnSelected(data.id, false, data.name)
-                        }
-                        disabled={loadingStates[data.id]}
-                      >
-                        {loadingStates[data.id] ? (
-                          <>
-                            <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></div>
-                            <span>구독해제</span>
-                          </>
-                        ) : (
-                          "구독해제"
-                        )}
-                      </button>
+                    {authToken && authTokenDecode !== false ? (
+                      subscriptionStatusMap[data.id] ? (
+                        <button
+                          className="px-4 py-2 rounded-xl border border-gray-300 bg-gray-200 text-gray-500 text-xs font-bold cursor-pointer hover:bg-gray-300 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+                          onClick={() =>
+                            handleNewsLetterUnSelected(data.id, false, data.name)
+                          }
+                          disabled={loadingStates[data.id]}
+                        >
+                          {loadingStates[data.id] ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></div>
+                              <span>구독해제</span>
+                            </>
+                          ) : (
+                            "구독해제"
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-customPurple to-purple-600 text-white text-xs font-bold cursor-pointer hover:from-purple-600 hover:to-customPurple transition-all duration-200 shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+                          onClick={() =>
+                            handleNewsLetterSelected(data.id, true, data.name)
+                          }
+                          disabled={loadingStates[data.id]}
+                        >
+                          {loadingStates[data.id] ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              <span>구독하기</span>
+                            </>
+                          ) : (
+                            "구독하기"
+                          )}
+                        </button>
+                      )
                     ) : (
                       <button
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-customPurple to-purple-600 text-white text-xs font-bold cursor-pointer hover:from-purple-600 hover:to-customPurple transition-all duration-200 shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
-                        onClick={() =>
-                          handleNewsLetterSelected(data.id, true, data.name)
-                        }
-                        disabled={loadingStates[data.id]}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-customPurple to-purple-600 text-white text-xs font-bold cursor-pointer hover:from-purple-600 hover:to-customPurple transition-all duration-200 shadow-md"
+                        onClick={() => setAuthOpenModal(true)}
                       >
-                        {loadingStates[data.id] ? (
-                          <>
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            <span>구독하기</span>
-                          </>
-                        ) : (
-                          "구독하기"
-                        )}
+                        구독하기
                       </button>
                     )}
                   </div>
                 </div>
               ))}
+              {(isFetching || isFetchingNextPage) && subscribeable.length > 0 && (
+                <div className="flex flex-col justify-between w-full border border-gray-200 rounded-3xl bg-white shadow-lg overflow-hidden animate-pulse">
+                  <div className="relative bg-gradient-to-br from-purple-50/50 to-white">
+                    <div className="border-b border-gray-200 min-h-[90px] flex items-center p-5">
+                      <div className="h-5 w-3/4 bg-gray-200 rounded-md"></div>
+                    </div>
+                    <div className="h-[280px] mb-7 px-5 py-4 space-y-3">
+                      {[...Array(3)].map((_, i2) => (
+                        <div key={i2} className="h-14 bg-gray-200 rounded-xl"></div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center p-5 bg-gray-50/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-gray-200"></div>
+                      <div className="h-4 w-20 bg-gray-200 rounded-md"></div>
+                    </div>
+                    <div className="h-9 w-24 bg-gray-200 rounded-xl"></div>
+                  </div>
+                </div>
+              )}
             </div>
             )}
           </div>
@@ -580,6 +622,70 @@ const Subscribe = () => {
         <div className='flex items-center justify-center mb-[120px]'>
       <div className='w-12 h-12 border-4 border-purple-200 border-t-customPurple rounded-full animate-spin'></div>
     </div>
+        </div>
+      )}
+
+      {/* Subscribed Card Modal */}
+      {isSubscribedModalOpen && selectedSubscribed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-3xl shadow-2xl w-[360px] max-w-[90%] border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md bg-gradient-to-br from-purple-50 to-white">
+                  <img
+                    className="w-full h-full object-cover"
+                    src={`/images/${selectedSubscribed.name}.png`}
+                    alt={selectedSubscribed.name}
+                  />
+                </div>
+                <div>
+                  <p className="text-base font-extrabold text-gray-900">{selectedSubscribed.name}</p>
+                  <p className="text-xs text-gray-500">구독중</p>
+                </div>
+              </div>
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+                onClick={closeSubscribedModal}
+              >
+                <span className="text-xl text-gray-500">×</span>
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3 max-h-[320px] overflow-auto custom-scrollbar">
+              {selectedSubscribed.mail && selectedSubscribed.mail.summary_list ? (
+                Object.entries(selectedSubscribed.mail.summary_list).map(([key, value]) => (
+                  <div key={key} className="p-3 rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50/60 to-white shadow-sm">
+                    <p className="text-sm font-bold text-customPurple mb-1">{key}</p>
+                    <p className="text-sm text-gray-700 font-semibold leading-relaxed">{String(value)}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 rounded-xl border border-gray-100 bg-gray-50 text-center text-sm text-gray-600 font-semibold">
+                  소식이 생기면 메일포켓이 빠르게 요약해서 전달해드릴게요.
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/60">
+              <button
+                className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-bold hover:bg-gray-100 transition"
+                onClick={closeSubscribedModal}
+              >
+                닫기
+              </button>
+              <button
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-customPurple to-purple-600 text-white text-sm font-bold shadow-md hover:from-purple-600 hover:to-customPurple transition disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={loadingStates[selectedSubscribed.id]}
+                onClick={() => handleUnsubscribeFromModal(selectedSubscribed)}
+              >
+                {loadingStates[selectedSubscribed.id] ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  "구독해제"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

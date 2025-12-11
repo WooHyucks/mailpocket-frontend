@@ -1,4 +1,5 @@
 import { SummaryNewsLetterDataType } from "../../pages/ReadPage";
+import { useToast } from "../Toast";
 
 type UrlShareType = {
   text?: string;
@@ -9,6 +10,7 @@ type UrlShareType = {
 
 
 const UrlShare = ({ summaryNewsLetterData, text, containerstyle, imgstyle }: UrlShareType) => {
+  const showToast = useToast();
   const getApiDataCopy = async () => {
     try {
       const readLinks = summaryNewsLetterData?.map((data) => data.read_link);
@@ -17,7 +19,8 @@ const UrlShare = ({ summaryNewsLetterData, text, containerstyle, imgstyle }: Url
       const combinedValues = [...fromName ,'\t' , ...summaryList,'\t' , ...readLinks];
       const textToCopy = combinedValues.join("\n");
       await navigator.clipboard.writeText(textToCopy);
-      alert("텍스트가 클립보드에 복사되었습니다.");
+      console.log(summaryNewsLetterData);
+      showToast("텍스트가 클립보드에 복사되었습니다.", { type: "success" });
     } catch (error) {
       console.error("클립보드 복사 실패");
     }

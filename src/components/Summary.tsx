@@ -547,4 +547,3 @@ export const MySummary = ({ summaryNewsLetterData, isLoadingDetail }: SummaryPro
     </div>
   );
 };
-
